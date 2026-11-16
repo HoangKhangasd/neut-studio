@@ -1,9 +1,11 @@
-import { Controller, Post, Get, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrdersService } from './orders.service.js';
-import { CreateOrderDto } from './dto/orders.dto.js';
+import { CreateOrderDto, AdminOrderQueryDto } from './dto/orders.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import { RolesGuard } from '../auth/guards/roles.guard.js';
+import { Roles } from '../auth/decorators/roles.decorator.js';
 
 @ApiTags('Orders & Checkout')
 @Controller('orders')
@@ -31,15 +33,17 @@ export class OrdersController {
   }
 
   @Get('admin/all')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Lấy danh sách tất cả đơn hàng cho Admin quản trị' })
-  async getAdminOrders() {
-    return this.ordersService.getAdminOrders();
+  @ApiOperation({ summary: 'Lấy danh sách đơn hàng cho Admin kèm phân trang, tìm kiếm và chi tiết món' })
+  async getAdminOrders(@Query() query: AdminOrderQueryDto) {
+    return this.ordersService.getAdminOrders(query);
   }
 
   @Patch('admin/:id/status')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin cập nhật trạng thái đơn hàng (CONFIRMED, SHIPPING, COMPLETED)' })
   async updateStatus(@Param('id') id: string, @Body('status') status: string) {

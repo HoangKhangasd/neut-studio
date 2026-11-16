@@ -1,11 +1,16 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { Search, ShoppingBag, User, Menu, X, LogOut, Package } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useCartStore } from '../../stores/cart-store';
 import { useAuthStore } from '../../stores/auth-store';
-import { AuthModal } from './AuthModal';
+
+const AuthModal = dynamic(
+  () => import('./AuthModal').then((mod) => mod.AuthModal),
+  { ssr: false }
+);
 
 export function HeaderMegaMenu() {
   const [mounted, setMounted] = useState(false);
@@ -150,7 +155,7 @@ export function HeaderMegaMenu() {
             title="Giỏ hàng"
           >
             <ShoppingBag size={20} />
-            {totalItems > 0 && (
+            {mounted && totalItems > 0 && (
               <span className="absolute top-1 right-1 bg-black text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-none">
                 {totalItems}
               </span>

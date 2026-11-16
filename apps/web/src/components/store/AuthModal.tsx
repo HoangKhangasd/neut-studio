@@ -100,6 +100,7 @@ export function AuthModal() {
 
       {/* Modal Dialog */}
       <div
+        suppressHydrationWarning
         className={`relative w-full max-w-md bg-white border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] z-10 transition-all duration-200 ease-out transform ${
           isAuthModalOpen ? 'scale-100 translate-y-0 opacity-100' : 'scale-95 translate-y-3 opacity-0'
         }`}

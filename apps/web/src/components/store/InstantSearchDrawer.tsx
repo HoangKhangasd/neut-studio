@@ -13,10 +13,15 @@ const POPULAR_SEARCHES = ['Áo thun', 'Denim', 'DCxAB', 'Balo', 'Casual', 'Overs
 
 export function InstantSearchDrawer() {
   const { isSearchOpen, closeSearch } = useCartStore();
+  const [mounted, setMounted] = useState(false);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isSearchOpen) {
@@ -64,7 +69,7 @@ export function InstantSearchDrawer() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  if (!isSearchOpen) return null;
+  if (!mounted || !isSearchOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-start bg-black/70 backdrop-blur-sm animate-fade-in">

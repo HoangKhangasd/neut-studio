@@ -30,11 +30,16 @@ export default function AccountPage() {
   const router = useRouter();
   const { user, token, logout, openAuthModal } = useAuthStore();
 
+  const [mounted, setMounted] = useState(false);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [errorOrders, setErrorOrders] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -57,6 +62,19 @@ export default function AccountPage() {
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
   };
+
+  if (!mounted) {
+    return (
+      <div className="max-w-md mx-auto py-24 px-4 text-center">
+        <div className="border-2 border-black p-8 bg-white shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col items-center justify-center min-h-[250px]">
+          <Loader2 className="w-8 h-8 animate-spin text-black mb-3" />
+          <span className="text-xs font-mono font-bold uppercase tracking-widest text-neutral-500">
+            ĐANG TẢI THÔNG TIN TÀI KHOẢN...
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   // If unauthenticated, show prompt to log in
   if (!token || !user) {

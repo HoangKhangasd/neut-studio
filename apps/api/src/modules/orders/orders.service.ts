@@ -1,5 +1,5 @@
-import { Injectable, ConflictException, NotFoundException, Inject } from '@nestjs/common';
-import { eq, sql, desc, and } from 'drizzle-orm';
+import { Injectable, ConflictException, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import { eq, sql, desc, and, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../../database/database.module.js';
 import {
   orders,
@@ -9,7 +9,7 @@ import {
   coupons,
   couponUsages,
 } from '../../database/schema/index.js';
-import { CreateOrderDto } from './dto/orders.dto.js';
+import { CreateOrderDto, AdminOrderQueryDto } from './dto/orders.dto.js';
 
 @Injectable()
 export class OrdersService {
@@ -183,17 +183,123 @@ export class OrdersService {
     };
   }
 
-  async getAdminOrders() {
-    const orderList = await this.db.select().from(orders).orderBy(desc(orders.createdAt)).limit(50);
-    return orderList;
+  async getAdminOrders(query?: AdminOrderQueryDto) {
+    const page = Math.max(1, Number(query?.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(query?.limit) || 20));
+    const offset = (page - 1) * limit;
+
+    const conditions: any[] = [];
+
+    if (query?.status && query.status !== 'ALL') {
+      conditions.push(eq(orders.orderStatus, query.status));
+    }
+
+    if (query?.search?.trim()) {
+      const term = `%${query.search.trim()}%`;
+      conditions.push(
+        sql`(${orders.orderCode} ILIKE ${term} OR ${orders.customerName} ILIKE ${term} OR ${orders.customerPhone} ILIKE ${term})`,
+      );
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const orderList = await this.db
+      .select()
+      .from(orders)
+      .where(whereClause)
+      .orderBy(desc(orders.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    if (orderList.length === 0) {
+      return { data: [], total: 0, page, totalPages: 0 };
+    }
+
+    const orderIds = orderList.map((o: any) => o.id);
+
+    const items = await this.db
+      .select()
+      .from(orderItems)
+      .where(inArray(orderItems.orderId, orderIds));
+
+    const formattedOrders = orderList.map((ord: any) => {
+      const ordItems = items.filter((item: any) => item.orderId === ord.id);
+      return {
+        ...ord,
+        items: ordItems,
+      };
+    });
+
+    const [{ count }] = await this.db
+      .select({ count: sql`count(*)` })
+      .from(orders)
+      .where(whereClause);
+
+    const total = Number(count);
+
+    return {
+      data: formattedOrders,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
-  async updateOrderStatus(id: string, status: string) {
-    const [updated] = await this.db
-      .update(orders)
-      .set({ orderStatus: status, updatedAt: new Date() })
-      .where(eq(orders.id, id))
-      .returning();
-    return updated;
+  async updateOrderStatus(id: string, newStatus: string) {
+    const ALLOWED_ORDER_TRANSITIONS: Record<string, string[]> = {
+      PENDING: ['CONFIRMED', 'CANCELLED'],
+      CONFIRMED: ['SHIPPING', 'CANCELLED'],
+      SHIPPING: ['COMPLETED', 'CANCELLED'],
+      COMPLETED: [],
+      CANCELLED: [],
+    };
+
+    return this.db.transaction(async (tx: any) => {
+      const [currentOrder] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, id));
+
+      if (!currentOrder) {
+        throw new NotFoundException('Không tìm thấy đơn hàng');
+      }
+
+      const currentStatus = currentOrder.orderStatus;
+      const allowed = ALLOWED_ORDER_TRANSITIONS[currentStatus] || [];
+
+      if (!allowed.includes(newStatus)) {
+        throw new BadRequestException(
+          `Không thể chuyển trạng thái đơn hàng từ '${currentStatus}' sang '${newStatus}'. Trạng thái hợp lệ: ${allowed.length ? allowed.join(', ') : 'Không có (đơn hàng đã kết thúc)'}`,
+        );
+      }
+
+      // If cancelling, restore inventory to product_variants
+      if (newStatus === 'CANCELLED' && currentStatus !== 'CANCELLED') {
+        const items = await tx
+          .select()
+          .from(orderItems)
+          .where(eq(orderItems.orderId, id));
+
+        for (const item of items) {
+          if (item.variantId) {
+            await tx
+              .update(productVariants)
+              .set({
+                stockQuantity: sql`${productVariants.stockQuantity} + ${item.quantity}`,
+                updatedAt: new Date(),
+              })
+              .where(eq(productVariants.id, item.variantId));
+          }
+        }
+      }
+
+      const [updated] = await tx
+        .update(orders)
+        .set({ orderStatus: newStatus, updatedAt: new Date() })
+        .where(eq(orders.id, id))
+        .returning();
+
+      return updated;
+    });
   }
 }

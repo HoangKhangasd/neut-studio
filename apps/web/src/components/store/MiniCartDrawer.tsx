@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { X, Trash2, Plus, Minus, ShoppingBag } from 'lucide-react';
@@ -8,8 +9,13 @@ import { formatVND } from '../../lib/utils';
 
 export function MiniCartDrawer() {
   const { isCartOpen, closeCart, items, removeItem, updateQuantity, getSubtotal } = useCartStore();
+  const [mounted, setMounted] = useState(false);
 
-  if (!isCartOpen) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted || !isCartOpen) return null;
 
   const subtotal = getSubtotal();
   const freeshipThreshold = 1000000;

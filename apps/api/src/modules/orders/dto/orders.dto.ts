@@ -62,3 +62,27 @@ export class CreateOrderDto {
   @IsOptional()
   userId?: string;
 }
+
+export class AdminOrderQueryDto {
+  @ApiProperty({ required: false, example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  page?: number;
+
+  @ApiProperty({ required: false, example: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  limit?: number;
+
+  @ApiProperty({ required: false, example: 'ALL' })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiProperty({ required: false, example: 'NEUT-2026' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+}

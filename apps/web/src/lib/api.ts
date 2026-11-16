@@ -155,12 +155,27 @@ export async function loginUser(credentials: { email: string; password: string }
   return res.json();
 }
 
-export async function fetchAdminOrders(token: string) {
-  const res = await fetch(`${API_BASE}/orders/admin/all`, {
+export async function fetchAdminOrders(
+  token: string,
+  params?: { page?: number; limit?: number; status?: string; search?: string },
+) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.status && params.status !== 'ALL') query.set('status', params.status);
+  if (params?.search?.trim()) query.set('search', params.search.trim());
+
+  const url = `${API_BASE}/orders/admin/all${query.toString() ? `?${query.toString()}` : ''}`;
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });
-  if (!res.ok) throw new Error('Không thể tải danh sách đơn hàng');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    const error = new Error(err.message || 'Không thể tải danh sách đơn hàng') as any;
+    error.status = res.status;
+    throw error;
+  }
   return res.json();
 }
 
@@ -287,7 +302,9 @@ export async function fetchAdminProducts(token: string): Promise<AdminProduct[]>
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || 'Không thể tải danh sách sản phẩm');
+    const error = new Error(err.message || 'Không thể tải danh sách sản phẩm') as any;
+    error.status = res.status;
+    throw error;
   }
   return res.json();
 }

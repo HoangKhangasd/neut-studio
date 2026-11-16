@@ -10,6 +10,8 @@ import {
   CreateProductAdminDto,
 } from './dto/products.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { RolesGuard } from '../auth/guards/roles.guard.js';
+import { Roles } from '../auth/decorators/roles.decorator.js';
 
 @ApiTags('Catalog & Products')
 @Controller()
@@ -18,7 +20,8 @@ export class ProductsController {
 
   // ===================== ADMIN ENDPOINTS =====================
   @Get('products/admin/all')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin lấy toàn bộ sản phẩm và tồn kho biến thể' })
   async getAdminProducts() {
@@ -26,7 +29,8 @@ export class ProductsController {
   }
 
   @Post('products/admin')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin tạo sản phẩm mới kèm biến thể và hình ảnh' })
   async createProductAdmin(@Body() dto: CreateProductAdminDto) {
@@ -34,7 +38,8 @@ export class ProductsController {
   }
 
   @Patch('products/admin/variants/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin cập nhật số lượng tồn kho và giá biến thể' })
   async updateVariantInventory(@Param('id') id: string, @Body() dto: UpdateVariantStockDto) {
@@ -42,7 +47,8 @@ export class ProductsController {
   }
 
   @Patch('products/admin/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin cập nhật thông tin sản phẩm (ẩn/hiện, nổi bật, giá, biến thể, hình ảnh)' })
   async updateProductAdmin(@Param('id') id: string, @Body() dto: UpdateProductAdminDto) {
@@ -50,7 +56,8 @@ export class ProductsController {
   }
 
   @Delete('products/admin/:id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Admin xóa sản phẩm khỏi hệ thống' })
   async deleteProductAdmin(@Param('id') id: string) {

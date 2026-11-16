@@ -28,7 +28,7 @@ export function EditProductModal({
   const [description, setDescription] = useState('');
   const [isPublished, setIsPublished] = useState(true);
   const [isFeatured, setIsFeatured] = useState(false);
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<{ previewUrl: string; minioUrl: string }[]>([]);
 
   // Stock per size
   const [stockS, setStockS] = useState(0);
@@ -50,7 +50,7 @@ export function EditProductModal({
       setDescription(product.description || '');
       setIsPublished(product.isPublished ?? true);
       setIsFeatured(product.isFeatured ?? false);
-      setImages(product.images?.map((img) => img.imageUrl) || []);
+      setImages(product.images?.map((img) => ({ previewUrl: img.imageUrl, minioUrl: img.imageUrl })) || []);
 
       // Variants stock
       const varS = product.variants?.find((v) => v.size === 'S');
@@ -73,16 +73,19 @@ export function EditProductModal({
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
+    const localPreview = URL.createObjectURL(file);
     setIsUploadingImage(true);
     setError('');
 
     try {
       const publicUrl = await uploadReviewImageToMinIO(file);
-      setImages((prev) => [...prev, publicUrl]);
+      setImages((prev) => [...prev, { previewUrl: localPreview, minioUrl: publicUrl }]);
     } catch (err: any) {
+      URL.revokeObjectURL(localPreview);
       setError(err.message || 'Tải ảnh lên MinIO thất bại');
     } finally {
       setIsUploadingImage(false);
+      e.target.value = '';
     }
   };
 
@@ -112,7 +115,7 @@ export function EditProductModal({
         description: description.trim() || undefined,
         isPublished,
         isFeatured,
-        images,
+        images: images.map((img) => img.minioUrl),
         variants: [
           { id: varS?.id, size: 'S', stockQuantity: Number(stockS) || 0, price: Number(basePrice) },
           { id: varM?.id, size: 'M', stockQuantity: Number(stockM) || 0, price: Number(basePrice) },
@@ -311,13 +314,20 @@ export function EditProductModal({
             {images.length > 0 && (
               <div className="flex gap-2 mt-2 overflow-x-auto py-1">
                 {images.map((img, idx) => (
-                  <div key={idx} className="relative w-16 h-16 border border-neutral-300 shrink-0">
+                  <div key={idx} className="relative w-16 h-16 border border-neutral-300 shrink-0 bg-neutral-100">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={img} alt="Product preview" className="w-full h-full object-cover" />
+                    <img
+                      src={img.previewUrl || img.minioUrl}
+                      alt="Product preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800';
+                      }}
+                    />
                     <button
                       type="button"
                       onClick={() => setImages((prev) => prev.filter((_, i) => i !== idx))}
-                      className="absolute top-0 right-0 p-0.5 bg-black text-white text-[10px] hover:bg-red-600 transition-colors"
+                      className="absolute top-0 right-0 p-0.5 bg-black text-white text-[10px] hover:bg-red-600 transition-colors cursor-pointer"
                       title="Xóa ảnh này"
                     >
                       ✕

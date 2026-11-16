@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
-import { eq, and, ilike, desc, asc, sql, inArray } from 'drizzle-orm';
+import { eq, and, or, ilike, desc, asc, sql, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../../database/database.module.js';
 import {
   products,
@@ -22,6 +22,28 @@ import {
 @Injectable()
 export class ProductsService {
   constructor(@Inject(DRIZZLE) private readonly db: any) {}
+
+  private async resolveCategoryId(rawCategoryId?: string | null): Promise<string | null> {
+    if (!rawCategoryId || typeof rawCategoryId !== 'string' || !rawCategoryId.trim()) {
+      return null;
+    }
+    const trimmed = rawCategoryId.trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
+    if (isUuid) {
+      const exists = await this.db.query.categories.findFirst({
+        where: eq(categories.id, trimmed),
+      });
+      return exists ? exists.id : null;
+    }
+
+    const found = await this.db.query.categories.findFirst({
+      where: or(
+        eq(categories.slug, trimmed.toLowerCase()),
+        ilike(categories.name, trimmed),
+      ),
+    });
+    return found ? found.id : null;
+  }
 
   // ===================== CATEGORIES =====================
   async getCategories() {
@@ -395,7 +417,7 @@ export class ProductsService {
     if (dto.title !== undefined) updateData.title = dto.title;
     if (dto.description !== undefined) updateData.description = dto.description;
     if (dto.categoryId !== undefined) {
-      updateData.categoryId = dto.categoryId && dto.categoryId.trim() ? dto.categoryId.trim() : null;
+      updateData.categoryId = await this.resolveCategoryId(dto.categoryId);
     }
     if (dto.isPublished !== undefined) updateData.isPublished = dto.isPublished;
     if (dto.isFeatured !== undefined) updateData.isFeatured = dto.isFeatured;
@@ -415,11 +437,13 @@ export class ProductsService {
 
         for (let i = 0; i < dto.images.length; i++) {
           const imgUrl = dto.images[i];
-          let minioKey = `products/${updated.slug}-${i}.jpg`;
-          if (imgUrl.includes('/products/')) {
+          let minioKey = `products/${updated.slug}-${i}-${Date.now()}.jpg`;
+          if (typeof imgUrl === 'string' && imgUrl.includes('/products/')) {
             const parts = imgUrl.split('/products/');
             const extracted = parts[parts.length - 1];
-            minioKey = extracted.startsWith('products/') ? extracted : `products/${extracted}`;
+            if (extracted && extracted.trim()) {
+              minioKey = extracted.startsWith('products/') ? extracted.trim() : `products/${extracted.trim()}`;
+            }
           }
 
           await tx.insert(productImages).values({
@@ -520,6 +544,7 @@ export class ProductsService {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
     const slug = `${cleanSlugBase || 'product'}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const resolvedCategoryId = await this.resolveCategoryId(dto.categoryId);
 
     return this.db.transaction(async (tx: any) => {
       const [newProd] = await tx
@@ -528,7 +553,7 @@ export class ProductsService {
           title: dto.title,
           slug,
           description: dto.description || '',
-          categoryId: dto.categoryId && dto.categoryId.trim() ? dto.categoryId.trim() : null,
+          categoryId: resolvedCategoryId,
           isPublished: true,
           isFeatured: false,
         })
@@ -538,11 +563,13 @@ export class ProductsService {
       if (dto.images && dto.images.length > 0) {
         for (let i = 0; i < dto.images.length; i++) {
           const imgUrl = dto.images[i];
-          let minioKey = `products/${newProd.slug}-${i}.jpg`;
-          if (imgUrl.includes('/products/')) {
+          let minioKey = `products/${newProd.slug}-${i}-${Date.now()}.jpg`;
+          if (typeof imgUrl === 'string' && imgUrl.includes('/products/')) {
             const parts = imgUrl.split('/products/');
             const extracted = parts[parts.length - 1];
-            minioKey = extracted.startsWith('products/') ? extracted : `products/${extracted}`;
+            if (extracted && extracted.trim()) {
+              minioKey = extracted.startsWith('products/') ? extracted.trim() : `products/${extracted.trim()}`;
+            }
           }
 
           await tx.insert(productImages).values({
@@ -579,8 +606,9 @@ export class ProductsService {
           removeVietnameseTones(slug)
             .replace(/[^a-zA-Z0-9]/g, '')
             .toUpperCase()
-            .slice(0, 10) || 'PROD';
-        const sku = `${cleanPrefix}-${cleanColor}-${v.size}`;
+            .slice(0, 8) || 'PROD';
+        const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const sku = `${cleanPrefix}-${cleanColor}-${v.size}-${randomSuffix}`;
 
         await tx.insert(productVariants).values({
           productId: newProd.id,
