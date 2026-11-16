@@ -1,0 +1,29 @@
+{
+  "name": "neut-studio-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Neut-Studio Official Streetwear Monorepo",
+  "packageManager": "pnpm@12.15.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter \"@neut/*\" dev",
+    "dev:api": "pnpm --filter @neut/api dev",
+    "dev:web": "pnpm --filter @neut/web dev",
+    "build": "pnpm --filter \"@neut/types\" build && pnpm --filter \"@neut/api\" build && pnpm --filter \"@neut/web\" build",
+    "build:api": "pnpm --filter @neut/api build",
+    "build:web": "pnpm --filter @neut/web build",
+    "db:push": "pnpm --filter @neut/api db:push",
+    "db:seed": "pnpm --filter @neut/api seed",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "infra:logs": "docker compose -f infra/docker-compose.yml logs -f",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "docx": "^9.14.0",
+    "eslint": "^9.20.0",
+    "prettier": "^3.5.0",
+    "typescript": "^5.7.3"
+  }
+}
