@@ -435,8 +435,22 @@ export class ProductsService {
 
       // Update variants if provided
       if (dto.variants && dto.variants.length > 0) {
+        const existingVariants = await tx
+          .select()
+          .from(productVariants)
+          .where(
+            and(
+              eq(productVariants.productId, productId),
+              sql`${productVariants.deletedAt} IS NULL`,
+            ),
+          );
+
         for (const v of dto.variants) {
-          if (v.id) {
+          const match = v.id
+            ? existingVariants.find((ev: any) => ev.id === v.id)
+            : existingVariants.find((ev: any) => ev.size === v.size);
+
+          if (match) {
             const varUpdate: any = { updatedAt: new Date() };
             if (v.stockQuantity !== undefined) varUpdate.stockQuantity = v.stockQuantity;
             if (v.price !== undefined) varUpdate.price = v.price;
@@ -444,7 +458,7 @@ export class ProductsService {
             if (v.colorName !== undefined) varUpdate.colorName = v.colorName;
             if (v.colorHex !== undefined) varUpdate.colorHex = v.colorHex;
 
-            await tx.update(productVariants).set(varUpdate).where(eq(productVariants.id, v.id));
+            await tx.update(productVariants).set(varUpdate).where(eq(productVariants.id, match.id));
           } else {
             const sku = `${updated.slug.slice(0, 10).toUpperCase()}-${(v.colorName || 'BLK').slice(0, 3).toUpperCase()}-${v.size}`;
             await tx.insert(productVariants).values({
