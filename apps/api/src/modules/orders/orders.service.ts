@@ -75,32 +75,62 @@ export class OrdersService {
 
       // Check discount coupon
       let discountAmount = 0;
+      let appliedCoupon: any = null;
       if (dto.couponCode?.trim()) {
         const code = dto.couponCode.trim().toUpperCase();
         const coupon = await tx.query.coupons.findFirst({
-          where: and(eq(coupons.code, code), eq(coupons.isActive, true)),
+          where: eq(coupons.code, code),
         });
 
-        if (coupon && coupon.usedCount < coupon.usageLimit) {
-          if (coupon.discountType === 'PERCENT') {
-            discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
-            if (coupon.maxDiscountAmount && discountAmount > coupon.maxDiscountAmount) {
-              discountAmount = coupon.maxDiscountAmount;
-            }
-          } else {
-            discountAmount = coupon.discountValue;
-          }
-
-          // Update coupon usage
-          await tx
-            .update(coupons)
-            .set({ usedCount: sql`${coupons.usedCount} + 1` })
-            .where(eq(coupons.id, coupon.id));
+        if (!coupon || !coupon.isActive) {
+          throw new BadRequestException('Mã giảm giá không tồn tại hoặc đã bị vô hiệu hóa');
         }
+
+        const now = new Date();
+        if (coupon.startDate && new Date(coupon.startDate) > now) {
+          throw new BadRequestException('Mã giảm giá chưa đến thời gian áp dụng');
+        }
+        if (coupon.endDate && new Date(coupon.endDate) < now) {
+          throw new BadRequestException('Mã giảm giá đã hết hạn sử dụng');
+        }
+        if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+          throw new BadRequestException('Mã giảm giá đã hết lượt sử dụng');
+        }
+        if (coupon.minOrderAmount && subtotal < Number(coupon.minOrderAmount)) {
+          throw new BadRequestException(
+            `Đơn hàng chưa đạt giá trị tối thiểu ${Number(coupon.minOrderAmount).toLocaleString('vi-VN')} VND để sử dụng mã này`,
+          );
+        }
+
+        if (coupon.discountType === 'PERCENT') {
+          discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
+          if (coupon.maxDiscountAmount && discountAmount > Number(coupon.maxDiscountAmount)) {
+            discountAmount = Number(coupon.maxDiscountAmount);
+          }
+        } else {
+          discountAmount = Math.min(subtotal, Number(coupon.discountValue));
+        }
+
+        // Update coupon usage atomically
+        const [updatedCoupon] = await tx
+          .update(coupons)
+          .set({ usedCount: sql`${coupons.usedCount} + 1` })
+          .where(and(eq(coupons.id, coupon.id), sql`${coupons.usedCount} < ${coupons.usageLimit}`))
+          .returning();
+
+        if (!updatedCoupon) {
+          throw new BadRequestException('Mã giảm giá vừa hết lượt sử dụng');
+        }
+        appliedCoupon = updatedCoupon;
       }
 
       const shippingFee = subtotal >= 1000000 ? 0 : 30000; // Freeship for orders >= 1,000,000 VND
       const totalAmount = Math.max(0, subtotal + shippingFee - discountAmount);
+
+      // Validate payment method
+      if (dto.paymentMethod && dto.paymentMethod !== 'COD') {
+        throw new BadRequestException('Hiện tại hệ thống chỉ hỗ trợ phương thức thanh toán COD');
+      }
 
       // Generate human-friendly order code
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -121,8 +151,8 @@ export class OrdersService {
           shippingFee,
           discountAmount,
           totalAmount,
-          paymentMethod: dto.paymentMethod,
-          paymentStatus: dto.paymentMethod === 'COD' ? 'PENDING' : 'PENDING',
+          paymentMethod: 'COD',
+          paymentStatus: 'PENDING',
           orderStatus: 'PENDING',
         })
         .returning();
@@ -133,6 +163,14 @@ export class OrdersService {
           orderId: newOrder.id,
           ...itemRecord,
         });
+      }
+
+      if (appliedCoupon && (userId || dto.userId)) {
+        await tx.insert(couponUsages).values({
+          couponId: appliedCoupon.id,
+          userId: userId || dto.userId,
+          orderId: newOrder.id,
+        }).catch(() => {});
       }
 
       return {
@@ -163,13 +201,23 @@ export class OrdersService {
     return results;
   }
 
-  async trackOrder(orderCode: string) {
+  async trackOrder(orderCode: string, phone?: string) {
+    const code = orderCode.toUpperCase().trim();
+    const conditions: any[] = [eq(orders.orderCode, code)];
+    if (phone && phone.trim()) {
+      conditions.push(eq(orders.customerPhone, phone.trim()));
+    }
+
     const order = await this.db.query.orders.findFirst({
-      where: eq(orders.orderCode, orderCode.toUpperCase().trim()),
+      where: and(...conditions),
     });
 
     if (!order) {
-      throw new NotFoundException('Không tìm thấy thông tin đơn hàng này');
+      throw new NotFoundException(
+        phone && phone.trim()
+          ? 'Không tìm thấy đơn hàng với mã đơn và số điện thoại đã nhập'
+          : 'Không tìm thấy thông tin đơn hàng này',
+      );
     }
 
     const items = await this.db

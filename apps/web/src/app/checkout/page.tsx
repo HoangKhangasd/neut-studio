@@ -19,7 +19,7 @@ import {
 import { useCartStore } from '../../stores/cart-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { formatVND } from '../../lib/utils';
-import { createOrder } from '../../lib/api';
+import { createOrder, validateCoupon } from '../../lib/api';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -34,9 +34,9 @@ export default function CheckoutPage() {
     customerName: user?.fullName || '',
     customerPhone: user?.phone || '',
     customerEmail: user?.email || '',
-    province: 'TP. Hồ Chí Minh',
-    district: 'Quận 10',
-    ward: 'Phường 12',
+    province: '',
+    district: '',
+    ward: '',
     street: '',
   });
 
@@ -51,10 +51,11 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
-  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PAYOS' | 'VNPAY'>('COD');
+  const paymentMethod = 'COD';
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -62,17 +63,22 @@ export default function CheckoutPage() {
   const totalAmount = Math.max(0, subtotal + shippingFee - discountAmount);
 
   // Apply Coupon
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponCode.trim()) return;
+    setErrorMessage('');
+    setIsApplyingCoupon(true);
 
-    if (couponCode.trim().toUpperCase() === 'NEUT10') {
-      const discount = Math.min(100000, Math.round((subtotal * 10) / 100));
-      setDiscountAmount(discount);
-      setAppliedCoupon('NEUT10');
-      setErrorMessage('');
-    } else {
-      setErrorMessage('Mã giảm giá không hợp lệ hoặc đã hết lượt sử dụng.');
+    try {
+      const res = await validateCoupon(couponCode.trim(), subtotal);
+      setDiscountAmount(res.discountAmount);
+      setAppliedCoupon(res.code);
+    } catch (err: any) {
+      setDiscountAmount(0);
+      setAppliedCoupon(null);
+      setErrorMessage(err.message || 'Mã giảm giá không hợp lệ hoặc đã hết hạn.');
+    } finally {
+      setIsApplyingCoupon(false);
     }
   };
 
@@ -89,7 +95,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (!formData.customerName || !formData.customerPhone || !formData.street) {
+    if (!formData.customerName.trim() || !formData.customerPhone.trim() || !formData.street.trim()) {
       setErrorMessage('Vui lòng điền đầy đủ họ tên, số điện thoại và địa chỉ nhận hàng.');
       return;
     }
@@ -99,16 +105,16 @@ export default function CheckoutPage() {
     try {
       const payload = {
         userId: user?.id || undefined,
-        customerName: formData.customerName,
-        customerPhone: formData.customerPhone,
-        customerEmail: formData.customerEmail || user?.email || 'guest@neut.studio',
+        customerName: formData.customerName.trim(),
+        customerPhone: formData.customerPhone.trim(),
+        customerEmail: formData.customerEmail?.trim() || user?.email || undefined,
         shippingAddress: {
-          province: formData.province,
-          district: formData.district,
-          ward: formData.ward,
-          street: formData.street,
+          province: formData.province.trim() || 'Việt Nam',
+          district: formData.district.trim(),
+          ward: formData.ward.trim(),
+          street: formData.street.trim(),
         },
-        paymentMethod,
+        paymentMethod: 'COD',
         items: items.map((i) => ({
           variantId: i.variantId,
           quantity: i.quantity,
@@ -293,93 +299,21 @@ export default function CheckoutPage() {
                 <span className="text-xs font-mono text-neutral-400 font-normal">BƯỚC 3/3</span>
               </h2>
 
-              <div className="space-y-3">
-                {/* Option 1: COD */}
-                <label
-                  className={`flex items-start gap-3.5 p-4 border cursor-pointer transition-all ${
-                    paymentMethod === 'COD'
-                      ? 'border-black bg-neutral-50 ring-1 ring-black'
-                      : 'border-neutral-200 hover:border-neutral-400'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="COD"
-                    checked={paymentMethod === 'COD'}
-                    onChange={() => setPaymentMethod('COD')}
-                    className="mt-1 accent-black"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Truck className="w-4 h-4 text-black" />
-                      <span className="text-xs font-bold uppercase">
-                        Thanh toán khi nhận hàng (COD)
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-neutral-500 mt-1">
-                      Nhận hàng, kiểm tra tem mác và thanh toán tiền mặt trực tiếp cho nhân viên giao vận.
-                    </p>
+              <div className="p-4 border-2 border-black bg-neutral-50 flex items-start gap-3.5">
+                <Truck className="w-5 h-5 text-black shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black uppercase tracking-wider text-black">
+                      Thanh toán khi nhận hàng (COD)
+                    </span>
+                    <span className="px-1.5 py-0.5 bg-black text-white text-[9px] font-mono uppercase font-bold">
+                      MẶC ĐỊNH
+                    </span>
                   </div>
-                </label>
-
-                {/* Option 2: PayOS QR */}
-                <label
-                  className={`flex items-start gap-3.5 p-4 border cursor-pointer transition-all ${
-                    paymentMethod === 'PAYOS'
-                      ? 'border-black bg-neutral-50 ring-1 ring-black'
-                      : 'border-neutral-200 hover:border-neutral-400'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="PAYOS"
-                    checked={paymentMethod === 'PAYOS'}
-                    onChange={() => setPaymentMethod('PAYOS')}
-                    className="mt-1 accent-black"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <QrCode className="w-4 h-4 text-black" />
-                      <span className="text-xs font-bold uppercase">
-                        Chuyển khoản VietQR 24/7 (PayOS)
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-neutral-500 mt-1">
-                      Quét mã QR tự động điền số tài khoản, số tiền và nội dung chuyển khoản bảo mật tức thì.
-                    </p>
-                  </div>
-                </label>
-
-                {/* Option 3: VNPay */}
-                <label
-                  className={`flex items-start gap-3.5 p-4 border cursor-pointer transition-all ${
-                    paymentMethod === 'VNPAY'
-                      ? 'border-black bg-neutral-50 ring-1 ring-black'
-                      : 'border-neutral-200 hover:border-neutral-400'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value="VNPAY"
-                    checked={paymentMethod === 'VNPAY'}
-                    onChange={() => setPaymentMethod('VNPAY')}
-                    className="mt-1 accent-black"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <CreditCard className="w-4 h-4 text-black" />
-                      <span className="text-xs font-bold uppercase">
-                        Cổng thanh toán VNPAY / Thẻ Visa / Mastercard
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-neutral-500 mt-1">
-                      Hỗ trợ thẻ ATM nội địa có Internet Banking, ví VNPAY và thẻ quốc tế.
-                    </p>
-                  </div>
-                </label>
+                  <p className="text-[11px] font-mono text-neutral-600 mt-1 leading-relaxed">
+                    Nhận hàng, kiểm tra tem mác và sản phẩm trước khi thanh toán tiền mặt trực tiếp cho nhân viên vận chuyển.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -442,9 +376,17 @@ export default function CheckoutPage() {
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-wider hover:bg-neutral-800 transition-colors"
+                  disabled={isApplyingCoupon}
+                  className="px-4 py-2 bg-black text-white text-xs font-bold uppercase tracking-wider hover:bg-neutral-800 transition-colors disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                 >
-                  Áp Dụng
+                  {isApplyingCoupon ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang kiểm tra...</span>
+                    </>
+                  ) : (
+                    <span>Áp Dụng</span>
+                  )}
                 </button>
               </div>
               {appliedCoupon && (

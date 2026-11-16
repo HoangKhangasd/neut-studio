@@ -58,23 +58,26 @@ export function HeaderMegaMenu() {
               Danh mục
             </span>
             <div className="absolute top-full left-0 hidden group-hover:block w-56 bg-white border border-neutral-200 shadow-lg py-2">
-              <Link href="/shop?category=tops" className="block px-4 py-2 text-xs hover:bg-neutral-100">
+              <Link href="/shop?categorySlug=tops" className="block px-4 py-2 text-xs hover:bg-neutral-100">
                 Tops (Áo thun, Hoodie, Sơ mi)
               </Link>
-              <Link href="/shop?category=bottoms" className="block px-4 py-2 text-xs hover:bg-neutral-100">
+              <Link href="/shop?categorySlug=bottoms" className="block px-4 py-2 text-xs hover:bg-neutral-100">
                 Bottoms (Quần Jean, Short)
               </Link>
-              <Link href="/shop?category=accessories" className="block px-4 py-2 text-xs hover:bg-neutral-100">
+              <Link href="/shop?categorySlug=accessories" className="block px-4 py-2 text-xs hover:bg-neutral-100">
                 Accessories (Phụ kiện)
               </Link>
-              <Link href="/shop?category=bags" className="block px-4 py-2 text-xs hover:bg-neutral-100">
+              <Link href="/shop?categorySlug=bags" className="block px-4 py-2 text-xs hover:bg-neutral-100">
                 Bags (Balo & Túi)
               </Link>
             </div>
           </div>
 
-          <Link href="/shop?collab=true" className="text-red-600 hover:text-red-700 transition-colors">
+          <Link href="/shop?collectionSlug=collab-all-blacks" className="text-red-600 hover:text-red-700 transition-colors">
             Collaborations
+          </Link>
+          <Link href="/track-order" className="hover:text-neutral-500 transition-colors text-xs font-mono">
+            Tra cứu đơn hàng
           </Link>
         </nav>
 
@@ -142,12 +145,7 @@ export function HeaderMegaMenu() {
             </button>
           )}
 
-          <Link
-            href="/admin"
-            className="hidden sm:inline-block text-[11px] font-bold border border-black px-2.5 py-1 tracking-wider uppercase hover:bg-black hover:text-white transition-colors"
-          >
-            Admin CMS
-          </Link>
+          {/* Admin link removed from customer storefront */}
 
           <button
             onClick={openCart}
@@ -170,14 +168,23 @@ export function HeaderMegaMenu() {
           <Link href="/shop" onClick={() => setMobileMenuOpen(false)} className="block py-1">
             Tất cả sản phẩm
           </Link>
-          <Link href="/shop?category=tops" onClick={() => setMobileMenuOpen(false)} className="block py-1 pl-4 text-xs text-neutral-600">
+          <Link href="/shop?categorySlug=tops" onClick={() => setMobileMenuOpen(false)} className="block py-1 pl-4 text-xs text-neutral-600">
             • Tops (Áo thun, Hoodie)
           </Link>
-          <Link href="/shop?category=bottoms" onClick={() => setMobileMenuOpen(false)} className="block py-1 pl-4 text-xs text-neutral-600">
+          <Link href="/shop?categorySlug=bottoms" onClick={() => setMobileMenuOpen(false)} className="block py-1 pl-4 text-xs text-neutral-600">
             • Bottoms (Quần jean, short)
           </Link>
-          <Link href="/shop?collab=true" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-red-600">
+          <Link href="/shop?categorySlug=accessories" onClick={() => setMobileMenuOpen(false)} className="block py-1 pl-4 text-xs text-neutral-600">
+            • Accessories (Phụ kiện)
+          </Link>
+          <Link href="/shop?categorySlug=bags" onClick={() => setMobileMenuOpen(false)} className="block py-1 pl-4 text-xs text-neutral-600">
+            • Bags (Balo & Túi)
+          </Link>
+          <Link href="/shop?collectionSlug=collab-all-blacks" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-red-600">
             Collaborations
+          </Link>
+          <Link href="/track-order" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-neutral-700 font-mono text-xs">
+            Tra cứu đơn hàng
           </Link>
           {mounted && token ? (
             <Link href="/account" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-black font-mono">
@@ -194,9 +201,6 @@ export function HeaderMegaMenu() {
               Đăng nhập / Đăng ký
             </button>
           )}
-          <Link href="/admin" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-xs border border-black text-center py-2">
-            Vào trang quản trị (Admin)
-          </Link>
         </div>
       )}
 

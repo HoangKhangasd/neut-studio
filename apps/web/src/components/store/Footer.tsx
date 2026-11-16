@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { MapPin, Phone, Mail, Clock, ShieldCheck, RefreshCw, Truck } from 'lucide-react';
+import { Phone, Mail, Clock, ShieldCheck, RefreshCw, Truck, ArrowUpRight } from 'lucide-react';
 
 export function Footer() {
   return (
@@ -19,7 +19,7 @@ export function Footer() {
             <Truck className="w-6 h-6 text-neutral-400 shrink-0" />
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-white">Miễn Phí Giao Hàng Toàn Quốc</h4>
-              <p className="text-[11px] text-neutral-400">Cho mọi đơn hàng có giá trị từ 500.000₫</p>
+              <p className="text-[11px] text-neutral-400">Cho mọi đơn hàng có giá trị từ 1.000.000₫</p>
             </div>
           </div>
           <div className="flex items-center justify-center md:justify-start gap-3.5">
@@ -40,7 +40,7 @@ export function Footer() {
             <h3 className="text-lg font-black tracking-tighter uppercase mb-4 text-white">
               NEUT-STUDIO
             </h3>
-            <p className="text-xs text-neutral-400 leading-relaxed mb-4">
+            <p className="text-xs text-neutral-400 leading-relaxed mb-4 font-mono">
               Thương hiệu thời trang Streetwear Việt Nam định hình phong cách hiện đại với form dáng Oversize, chất liệu Heavyweight Cotton và thiết kế đồ hoạ cá tính.
             </p>
             <div className="space-y-2 text-xs text-neutral-400 font-mono">
@@ -54,95 +54,86 @@ export function Footer() {
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-3.5 h-3.5 text-neutral-300" />
-                <span>Mở cửa: 9:30 - 22:00 hàng ngày</span>
+                <span>Hỗ trợ trực tuyến: 24/7</span>
               </div>
             </div>
           </div>
 
-          {/* Column 2: Physical Stores */}
+          {/* Column 2: Online Studio & Manifesto */}
           <div>
             <h4 className="text-xs font-black uppercase tracking-widest text-neutral-200 mb-4">
-              HỆ THỐNG CỬA HÀNG
+              ONLINE STUDIO & ATELIER
             </h4>
-            <ul className="space-y-3 text-xs text-neutral-400">
-              <li className="space-y-0.5">
-                <div className="font-bold text-white flex items-center gap-1.5">
-                  <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
-                  <span>Flagship Sư Vạn Hạnh (TP.HCM)</span>
-                </div>
-                <p className="text-[11px] text-neutral-400 pl-4.5">491 Sư Vạn Hạnh, Phường 12, Quận 10</p>
-              </li>
-              <li className="space-y-0.5">
-                <div className="font-bold text-white flex items-center gap-1.5">
-                  <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
-                  <span>Store Vincom Đồng Khởi (TP.HCM)</span>
-                </div>
-                <p className="text-[11px] text-neutral-400 pl-4.5">Tầng B2-08, 72 Lê Thánh Tôn, Bến Nghé, Quận 1</p>
-              </li>
-              <li className="space-y-0.5">
-                <div className="font-bold text-white flex items-center gap-1.5">
-                  <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
-                  <span>Store Đê La Thành (Hà Nội)</span>
-                </div>
-                <p className="text-[11px] text-neutral-400 pl-4.5">1023 Đê La Thành, Ba Đình</p>
-              </li>
-            </ul>
+            <div className="space-y-3 text-xs text-neutral-400 font-mono leading-relaxed">
+              <p>
+                Neut-Studio vận hành mô hình Direct-to-Consumer (D2C) trực tuyến toàn quốc với xưởng may độc lập tại TP. Hồ Chí Minh.
+              </p>
+              <div className="border border-neutral-800 p-3 bg-neutral-950">
+                <span className="text-[11px] font-bold text-white uppercase block mb-1">
+                  ĐÓNG GÓI CHUẨN XUẤT KHẨU
+                </span>
+                <p className="text-[11px] text-neutral-500">
+                  Mỗi kiện hàng đều bao gồm hộp carton mộc, túi zip chống ẩm Neut-Bag, sticker độc quyền và thẻ bảo hành sản phẩm.
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* Column 3: Customer Policies */}
+          {/* Column 3: Customer Policies & Support */}
           <div>
             <h4 className="text-xs font-black uppercase tracking-widest text-neutral-200 mb-4">
               CHÍNH SÁCH & HỖ TRỢ
             </h4>
-            <ul className="space-y-2.5 text-xs text-neutral-400">
+            <ul className="space-y-2.5 text-xs text-neutral-400 font-mono">
               <li>
-                <Link href="/shop" className="hover:text-white transition-colors">
+                <Link href="/track-order" className="hover:text-white transition-colors flex items-center gap-1 text-white font-bold">
+                  <span>Tra cứu hành trình đơn hàng</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </Link>
+              </li>
+              <li>
+                <Link href="/policies/return" className="hover:text-white transition-colors">
                   Chính sách đổi trả & hoàn tiền 15 ngày
                 </Link>
               </li>
               <li>
-                <Link href="/shop" className="hover:text-white transition-colors">
-                  Bảo hành hình in và đường may trọn đời
+                <Link href="/policies/warranty" className="hover:text-white transition-colors">
+                  Bảo hành hình in & đường may trọn đời
                 </Link>
               </li>
               <li>
-                <Link href="/shop" className="hover:text-white transition-colors">
+                <Link href="/size-guide" className="hover:text-white transition-colors">
                   Bảng thông số chọn size tiêu chuẩn
                 </Link>
               </li>
               <li>
-                <Link href="/shop" className="hover:text-white transition-colors">
+                <Link href="/policies/privacy" className="hover:text-white transition-colors">
                   Quy trình bảo mật thông tin khách hàng
-                </Link>
-              </li>
-              <li>
-                <Link href="/admin" className="hover:text-white transition-colors">
-                  Cổng Quản Trị Hệ Thống (CMS Admin)
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Column 4: Payment & Verification */}
+          {/* Column 4: Payment & Security */}
           <div>
             <h4 className="text-xs font-black uppercase tracking-widest text-neutral-200 mb-4">
               PHƯƠNG THỨC THANH TOÁN
             </h4>
-            <p className="text-xs text-neutral-400 mb-4">
-              Hỗ trợ đa dạng các hình thức thanh toán an toàn, bảo mật tiêu chuẩn mã hóa PCI-DSS:
+            <p className="text-xs text-neutral-400 mb-4 font-mono">
+              Hỗ trợ giao hàng và thanh toán an toàn, minh bạch trên toàn quốc:
             </p>
             <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <span className="p-2 border border-neutral-800 text-center text-neutral-300 bg-neutral-950 font-bold">
+              <span className="p-2 border border-neutral-800 text-center text-white bg-neutral-950 font-bold">
                 COD TẬN NƠI
               </span>
               <span className="p-2 border border-neutral-800 text-center text-neutral-300 bg-neutral-950 font-bold">
-                VIETQR 24/7
+                ĐỒNG KIỂM HÀNG
               </span>
               <span className="p-2 border border-neutral-800 text-center text-neutral-300 bg-neutral-950 font-bold">
-                VNPAY / PAYOS
+                FREESHIP 1TR+
               </span>
               <span className="p-2 border border-neutral-800 text-center text-neutral-300 bg-neutral-950 font-bold">
-                VISA / MASTER
+                BẢO HÀNH 100%
               </span>
             </div>
           </div>

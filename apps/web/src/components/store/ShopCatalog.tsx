@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Filter, X, SlidersHorizontal, ArrowUpDown } from 'lucide-react';
 import { ProductCard } from './ProductCard';
-import { Product } from '../../lib/types';
-import { fetchProducts } from '../../lib/api';
+import { Product, Category } from '../../lib/types';
+import { fetchProducts, fetchCategories } from '../../lib/api';
 
 interface ShopCatalogProps {
   initialProducts: Product[];
@@ -20,7 +20,7 @@ const COLORS = [
   { name: 'Xám Khói', hex: '#718096' },
 ];
 
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   { slug: 'all', name: 'Tất cả sản phẩm' },
   { slug: 'tops', name: 'Áo (Tops)' },
   { slug: 'bottoms', name: 'Quần (Bottoms)' },
@@ -32,14 +32,31 @@ export function ShopCatalog({ initialProducts, initialTotal }: ShopCatalogProps)
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [categories, setCategories] = useState<{ slug: string; name: string }[]>(DEFAULT_CATEGORIES);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [total, setTotal] = useState<number>(initialTotal);
   const [loading, setLoading] = useState(false);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+  const isFirstMount = useRef(true);
 
-  // Filter states derived from search params (supports both categorySlug and category)
+  // Load dynamic categories
+  useEffect(() => {
+    fetchCategories().then((cats) => {
+      if (cats && cats.length > 0) {
+        setCategories([
+          { slug: 'all', name: 'Tất cả sản phẩm' },
+          ...cats.map((c) => ({ slug: c.slug, name: c.name })),
+        ]);
+      }
+    });
+  }, []);
+
+  // Filter states derived from search params (supports both categorySlug and legacy category)
   const currentCategory =
     searchParams.get('categorySlug') || searchParams.get('category') || 'all';
+  const currentCollection =
+    searchParams.get('collectionSlug') ||
+    (searchParams.get('collab') === 'true' ? 'collab-all-blacks' : '');
   const currentSort = searchParams.get('sortBy') || 'newest';
   const currentSearch = searchParams.get('search') || '';
   const currentSize = searchParams.get('sizes') || '';
@@ -48,6 +65,7 @@ export function ShopCatalog({ initialProducts, initialTotal }: ShopCatalogProps)
   const updateParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete('category'); // clean legacy param
+    params.delete('collab'); // clean legacy param
     if (value && value !== 'all') {
       params.set(key, value);
     } else {
@@ -63,11 +81,27 @@ export function ShopCatalog({ initialProducts, initialTotal }: ShopCatalogProps)
 
   // Re-fetch when searchParams change
   useEffect(() => {
+    // If it's the very first render and there are no active filters, use initialProducts
+    if (
+      isFirstMount.current &&
+      currentCategory === 'all' &&
+      !currentCollection &&
+      currentSort === 'newest' &&
+      !currentSearch &&
+      !currentSize &&
+      !currentColor
+    ) {
+      isFirstMount.current = false;
+      return;
+    }
+    isFirstMount.current = false;
+
     let isMounted = true;
     setLoading(true);
 
     fetchProducts({
       categorySlug: currentCategory,
+      collectionSlug: currentCollection || undefined,
       sortBy: currentSort,
       search: currentSearch,
       sizes: currentSize,
@@ -87,10 +121,10 @@ export function ShopCatalog({ initialProducts, initialTotal }: ShopCatalogProps)
     return () => {
       isMounted = false;
     };
-  }, [currentCategory, currentSort, currentSearch, currentSize, currentColor]);
+  }, [currentCategory, currentCollection, currentSort, currentSearch, currentSize, currentColor]);
 
   const hasActiveFilters =
-    currentCategory !== 'all' || currentSize || currentColor || currentSearch;
+    currentCategory !== 'all' || !!currentCollection || !!currentSize || !!currentColor || !!currentSearch;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
@@ -102,8 +136,8 @@ export function ShopCatalog({ initialProducts, initialTotal }: ShopCatalogProps)
           </span>
           <h1 className="text-2xl sm:text-4xl font-black uppercase tracking-tight text-black">
             {currentCategory === 'all'
-              ? 'TẤT CẢ SẢN PHẨM'
-              : CATEGORIES.find((c) => c.slug === currentCategory)?.name || 'DANH MỤC'}
+              ? (currentCollection ? `COLLECTION: ${currentCollection}` : 'TẤT CẢ SẢN PHẨM')
+              : categories.find((c) => c.slug === currentCategory)?.name || 'DANH MỤC'}
           </h1>
           {currentSearch && (
             <p className="text-xs text-neutral-600 mt-1">
@@ -143,8 +177,16 @@ export function ShopCatalog({ initialProducts, initialTotal }: ShopCatalogProps)
           <span className="text-xs font-bold uppercase text-neutral-500 mr-2">Đang lọc:</span>
           {currentCategory !== 'all' && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-black text-white text-xs font-mono">
-              Danh mục: {CATEGORIES.find((c) => c.slug === currentCategory)?.name}
+              Danh mục: {categories.find((c) => c.slug === currentCategory)?.name || currentCategory}
               <button onClick={() => updateParam('categorySlug', null)}>
+                <X className="w-3 h-3 hover:text-red-400" />
+              </button>
+            </span>
+          )}
+          {currentCollection && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-black text-white text-xs font-mono">
+              Bộ sưu tập: {currentCollection}
+              <button onClick={() => updateParam('collectionSlug', null)}>
                 <X className="w-3 h-3 hover:text-red-400" />
               </button>
             </span>
@@ -192,7 +234,7 @@ export function ShopCatalog({ initialProducts, initialTotal }: ShopCatalogProps)
               DANH MỤC SẢN PHẨM
             </h3>
             <div className="space-y-1.5">
-              {CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <button
                   key={cat.slug}
                   onClick={() => updateParam('categorySlug', cat.slug === 'all' ? null : cat.slug)}
@@ -271,7 +313,7 @@ export function ShopCatalog({ initialProducts, initialTotal }: ShopCatalogProps)
               <div>
                 <h4 className="text-xs font-black uppercase tracking-wider mb-2">DANH MỤC</h4>
                 <div className="space-y-1">
-                  {CATEGORIES.map((cat) => (
+                  {categories.map((cat) => (
                     <button
                       key={cat.slug}
                       onClick={() => {

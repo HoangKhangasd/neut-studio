@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { ProductsModule } from './modules/products/products.module.js';
 import { StoresModule } from './modules/stores/stores.module.js';
 import { OrdersModule } from './modules/orders/orders.module.js';
+import { CouponsModule } from './modules/coupons/coupons.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 
@@ -21,6 +22,7 @@ import { AppService } from './app.service.js';
     ProductsModule,
     StoresModule,
     OrdersModule,
+    CouponsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

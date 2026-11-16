@@ -27,7 +27,7 @@ export function PhoneSubscribeBanner() {
     try {
       const res = await subscribeNewsletter(phone);
       setSuccess(true);
-      setCouponCode(res.coupon || 'NEUT10');
+      setCouponCode(res.code || res.coupon || '');
     } catch {
       setErrorMsg('Đăng ký không thành công. Vui lòng thử lại sau.');
     } finally {

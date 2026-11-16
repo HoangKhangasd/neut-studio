@@ -62,19 +62,19 @@ export default async function HomePage() {
             {
               title: 'TOPS // ÁO THUN',
               subtitle: 'Heavyweight Tee & Hoodie',
-              href: '/shop?categorySlug=ao-tops',
+              href: '/shop?categorySlug=tops',
               image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800&auto=format&fit=crop&q=80',
             },
             {
               title: 'BOTTOMS // QUẦN',
               subtitle: 'Wide-Leg Denim & Rivets',
-              href: '/shop?categorySlug=quan-bottoms',
+              href: '/shop?categorySlug=bottoms',
               image: 'https://images.unsplash.com/photo-1542272604-787c3835535d?w=800&auto=format&fit=crop&q=80',
             },
             {
               title: 'BAGS // BALO',
               subtitle: 'Studs & Utility Backpacks',
-              href: '/shop?categorySlug=balo-tui-xach',
+              href: '/shop?categorySlug=bags',
               image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&auto=format&fit=crop&q=80',
             },
             {

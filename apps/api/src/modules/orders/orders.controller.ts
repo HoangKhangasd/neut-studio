@@ -27,9 +27,12 @@ export class OrdersController {
   }
 
   @Get('track/:orderCode')
-  @ApiOperation({ summary: 'Tra cứu hành trình đơn hàng theo mã đơn (e.g. NEUT-20261024-1234)' })
-  async trackOrder(@Param('orderCode') orderCode: string) {
-    return this.ordersService.trackOrder(orderCode);
+  @ApiOperation({ summary: 'Tra cứu hành trình đơn hàng theo mã đơn và SĐT khách hàng' })
+  async trackOrder(
+    @Param('orderCode') orderCode: string,
+    @Query('phone') phone?: string,
+  ) {
+    return this.ordersService.trackOrder(orderCode, phone);
   }
 
   @Get('admin/all')

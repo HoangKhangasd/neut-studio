@@ -36,10 +36,13 @@ export class StoresService {
     });
 
     if (existing) {
+      const existingCode = existing.discountCodeSent || 'NEUT10';
       return {
         success: true,
         message: 'Số điện thoại này đã được nhận mã giảm giá 10% trước đó.',
-        code: existing.discountCodeSent || 'NEUT10',
+        code: existingCode,
+        coupon: existingCode,
+        couponCode: existingCode,
       };
     }
 
@@ -53,6 +56,8 @@ export class StoresService {
       success: true,
       message: 'Cám ơn bạn đã đăng ký! Mã giảm giá 10% của bạn là NEUT10.',
       code,
+      coupon: code,
+      couponCode: code,
     };
   }
 }

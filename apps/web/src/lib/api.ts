@@ -234,15 +234,56 @@ export async function submitProductReview(
     comment: string;
     images?: string[];
   },
+  token?: string,
 ) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const res = await fetch(`${API_BASE}/products/${slug}/reviews`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(data),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || 'Không thể gửi đánh giá');
+  }
+  return res.json();
+}
+
+export async function validateCoupon(
+  code: string,
+  subtotal: number,
+): Promise<{
+  valid: boolean;
+  code: string;
+  discountType: string;
+  discountValue: number;
+  maxDiscountAmount?: number;
+  minOrderAmount?: number;
+  discountAmount: number;
+  message: string;
+}> {
+  const res = await fetch(`${API_BASE}/coupons/validate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, subtotal }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Mã giảm giá không hợp lệ hoặc đã hết hạn');
+  }
+  return res.json();
+}
+
+export async function trackGuestOrder(orderCode: string, phone?: string): Promise<CustomerOrder> {
+  const query = phone && phone.trim() ? `?phone=${encodeURIComponent(phone.trim())}` : '';
+  const res = await fetch(`${API_BASE}/orders/track/${encodeURIComponent(orderCode.trim())}${query}`, {
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Không tìm thấy thông tin đơn hàng này');
   }
   return res.json();
 }

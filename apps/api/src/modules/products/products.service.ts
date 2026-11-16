@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
 import { eq, and, or, ilike, desc, asc, sql, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../../database/database.module.js';
 import {
@@ -9,6 +9,8 @@ import {
   collections,
   collectionProducts,
   productReviews,
+  orders,
+  orderItems,
 } from '../../database/schema/index.js';
 import {
   ProductQueryDto,
@@ -326,6 +328,10 @@ export class ProductsService {
   }
 
   async createProductReview(slug: string, dto: CreateReviewDto, userId?: string) {
+    if (!userId) {
+      throw new ForbiddenException('Vui lòng đăng nhập để viết đánh giá cho sản phẩm');
+    }
+
     const prod = await this.db.query.products.findFirst({
       where: eq(products.slug, slug),
     });
@@ -334,11 +340,42 @@ export class ProductsService {
       throw new NotFoundException('Không tìm thấy sản phẩm để đánh giá');
     }
 
+    // Verify user has purchased this product and order status is COMPLETED
+    const prodVariants = await this.db
+      .select({ id: productVariants.id })
+      .from(productVariants)
+      .where(eq(productVariants.productId, prod.id));
+
+    const variantIds = prodVariants.map((v: any) => v.id);
+
+    if (variantIds.length === 0) {
+      throw new ForbiddenException('Sản phẩm chưa có biến thể nào để đánh giá');
+    }
+
+    const eligibleOrders = await this.db
+      .select({ orderId: orders.id })
+      .from(orders)
+      .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
+      .where(
+        and(
+          eq(orders.userId, userId),
+          eq(orders.orderStatus, 'COMPLETED'),
+          inArray(orderItems.variantId, variantIds),
+        ),
+      )
+      .limit(1);
+
+    if (eligibleOrders.length === 0) {
+      throw new ForbiddenException(
+        'Bạn chỉ có thể đánh giá sản phẩm sau khi đã mua và đơn hàng được giao thành công (COMPLETED)',
+      );
+    }
+
     const [review] = await this.db
       .insert(productReviews)
       .values({
         productId: prod.id,
-        userId: userId || null,
+        userId: userId,
         customerName: dto.customerName?.trim() || 'Khách hàng Neut',
         rating: Math.max(1, Math.min(5, dto.rating)),
         fitScore: dto.fitScore,

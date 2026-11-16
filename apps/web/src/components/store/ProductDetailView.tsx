@@ -20,7 +20,6 @@ import { Product, ProductVariant } from '../../lib/types';
 import { formatVND } from '../../lib/utils';
 import { useCartStore } from '../../stores/cart-store';
 import { FitFinderModal } from './FitFinderModal';
-import { StoreInventoryDrawer } from './StoreInventoryDrawer';
 import { ProductReviewsSection } from './ProductReviewsSection';
 
 interface ProductDetailViewProps {
@@ -66,7 +65,18 @@ export function ProductDetailView({ product, relatedProducts }: ProductDetailVie
 
   // Modals state
   const [isFitFinderOpen, setIsFitFinderOpen] = useState(false);
-  const [isStoreDrawerOpen, setIsStoreDrawerOpen] = useState(false);
+
+  // Switch color and automatically select first available size for that color
+  const handleColorChange = (newColor: string) => {
+    setSelectedColor(newColor);
+    setSelectedImageIndex(0);
+    const newColorVariants = product.variants?.filter((v) => v.colorName === newColor) || [];
+    const firstInStock = newColorVariants.find((v) => v.stockQuantity > 0) || newColorVariants[0];
+    if (firstInStock) {
+      setSelectedSize(firstInStock.size);
+      setQuantity(1);
+    }
+  };
 
   // Accordion state
   const [openAccordions, setOpenAccordions] = useState<{ [key: string]: boolean }>({
@@ -108,8 +118,8 @@ export function ProductDetailView({ product, relatedProducts }: ProductDetailVie
   const activeImage = displayImages[selectedImageIndex] || displayImages[0];
   const isOutOfStock = !currentVariant || currentVariant.stockQuantity <= 0;
 
-  const handleAddToCart = () => {
-    if (!currentVariant || isOutOfStock) return;
+  const handleAddToCart = (): boolean => {
+    if (!currentVariant || isOutOfStock) return false;
 
     addItem(
       {
@@ -125,11 +135,14 @@ export function ProductDetailView({ product, relatedProducts }: ProductDetailVie
       },
       quantity,
     );
+    return true;
   };
 
   const handleBuyNow = () => {
-    handleAddToCart();
-    router.push('/checkout');
+    const success = handleAddToCart();
+    if (success) {
+      router.push('/checkout');
+    }
   };
 
   return (
@@ -222,10 +235,7 @@ export function ProductDetailView({ product, relatedProducts }: ProductDetailVie
                 {availableColors.map((color) => (
                   <button
                     key={color.name}
-                    onClick={() => {
-                      setSelectedColor(color.name);
-                      setSelectedImageIndex(0);
-                    }}
+                    onClick={() => handleColorChange(color.name)}
                     className={`flex items-center gap-2 px-3 py-1.5 border text-xs font-bold transition-all ${
                       selectedColor === color.name
                         ? 'border-black bg-black text-white'
@@ -344,17 +354,6 @@ export function ProductDetailView({ product, relatedProducts }: ProductDetailVie
             </button>
           </div>
 
-          {/* Store Availability Link */}
-          <div className="pt-1">
-            <button
-              onClick={() => setIsStoreDrawerOpen(true)}
-              className="w-full py-2.5 border border-dashed border-neutral-400 text-neutral-800 hover:border-black hover:text-black text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-colors"
-            >
-              <MapPin className="w-4 h-4 text-neutral-600" />
-              Kiểm Tra Tồn Kho Tại 4 Chi Nhánh Cửa Hàng
-            </button>
-          </div>
-
           {/* Value Propositions Pill Grid */}
           <div className="grid grid-cols-3 gap-2 pt-4 border-t border-neutral-200 text-center">
             <div className="p-2.5 bg-neutral-50 border border-neutral-200">
@@ -363,7 +362,7 @@ export function ProductDetailView({ product, relatedProducts }: ProductDetailVie
             </div>
             <div className="p-2.5 bg-neutral-50 border border-neutral-200">
               <Truck className="w-4 h-4 mx-auto mb-1 text-neutral-700" />
-              <span className="text-[10px] font-bold uppercase block">Freeship từ 500k</span>
+              <span className="text-[10px] font-bold uppercase block">Freeship từ 1.000k</span>
             </div>
             <div className="p-2.5 bg-neutral-50 border border-neutral-200">
               <ShieldCheck className="w-4 h-4 mx-auto mb-1 text-neutral-700" />
@@ -497,16 +496,6 @@ export function ProductDetailView({ product, relatedProducts }: ProductDetailVie
         isOpen={isFitFinderOpen}
         onClose={() => setIsFitFinderOpen(false)}
         onSelectSize={(size) => setSelectedSize(size)}
-      />
-
-      {/* Store Inventory Slide-over Drawer */}
-      <StoreInventoryDrawer
-        isOpen={isStoreDrawerOpen}
-        onClose={() => setIsStoreDrawerOpen(false)}
-        variantId={currentVariant?.id}
-        productTitle={product.title}
-        colorName={selectedColor}
-        size={selectedSize}
       />
     </div>
   );

@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Heart } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Product } from '../../lib/types';
 import { formatVND } from '../../lib/utils';
 import { useCartStore } from '../../stores/cart-store';
@@ -16,6 +16,41 @@ export function ProductCard({ product }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const { addItem } = useCartStore();
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('neut_wishlist');
+      if (stored) {
+        const ids = JSON.parse(stored);
+        if (Array.isArray(ids) && ids.includes(product.id)) {
+          setIsWishlisted(true);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [product.id]);
+
+  const toggleWishlist = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const stored = localStorage.getItem('neut_wishlist');
+      let ids: string[] = stored ? JSON.parse(stored) : [];
+      if (!Array.isArray(ids)) ids = [];
+
+      if (ids.includes(product.id)) {
+        ids = ids.filter((id) => id !== product.id);
+        setIsWishlisted(false);
+      } else {
+        ids.push(product.id);
+        setIsWishlisted(true);
+      }
+      localStorage.setItem('neut_wishlist', JSON.stringify(ids));
+    } catch {
+      setIsWishlisted(!isWishlisted);
+    }
+  };
 
   const primaryImage = product.images?.[0]?.imageUrl || 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800';
   const secondaryImage = product.images?.[1]?.imageUrl || primaryImage;
@@ -68,10 +103,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
         {/* Wishlist Heart */}
         <button
-          onClick={(e) => {
-            e.preventDefault();
-            setIsWishlisted(!isWishlisted);
-          }}
+          onClick={toggleWishlist}
           className="absolute top-2 right-2 z-10 p-1.5 bg-white/80 hover:bg-white text-black transition-colors"
           title="Yêu thích"
         >

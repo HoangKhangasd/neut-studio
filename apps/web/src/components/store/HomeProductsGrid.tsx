@@ -15,11 +15,17 @@ export function HomeProductsGrid({ initialProducts }: HomeProductsGridProps) {
 
   const filteredProducts = initialProducts.filter((product) => {
     if (activeTab === 'all') return true;
+    const catSlug = product.category?.slug?.toLowerCase();
+    if (catSlug) {
+      if (activeTab === 'accessories') {
+        return catSlug === 'accessories' || catSlug === 'bags';
+      }
+      return catSlug === activeTab;
+    }
     const t = product.title.toLowerCase();
-    const s = product.slug.toLowerCase();
-    if (activeTab === 'tops') return t.includes('áo') || t.includes('hoodie') || t.includes('tee') || t.includes('shirt') || s.includes('ao') || s.includes('hoodie');
-    if (activeTab === 'bottoms') return t.includes('quần') || t.includes('jean') || t.includes('pant') || t.includes('short') || s.includes('quan');
-    if (activeTab === 'accessories') return t.includes('balo') || t.includes('túi') || t.includes('bag') || t.includes('nón') || t.includes('phụ kiện') || s.includes('balo') || s.includes('bag');
+    if (activeTab === 'tops') return t.includes('áo') || t.includes('hoodie') || t.includes('tee') || t.includes('shirt');
+    if (activeTab === 'bottoms') return t.includes('quần') || t.includes('jean') || t.includes('pant') || t.includes('short');
+    if (activeTab === 'accessories') return t.includes('balo') || t.includes('túi') || t.includes('bag') || t.includes('nón') || t.includes('phụ kiện');
     return true;
   });
 

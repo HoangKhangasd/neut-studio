@@ -12,6 +12,7 @@ import {
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 
 @ApiTags('Catalog & Products')
 @Controller()
@@ -73,9 +74,15 @@ export class ProductsController {
   }
 
   @Post('products/:slug/reviews')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Khách hàng viết review kèm đánh giá form, số đo thực tế và ảnh feedback MinIO' })
-  async createProductReview(@Param('slug') slug: string, @Body() dto: CreateReviewDto) {
-    return this.productsService.createProductReview(slug, dto);
+  async createProductReview(
+    @Param('slug') slug: string,
+    @Body() dto: CreateReviewDto,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.productsService.createProductReview(slug, dto, userId);
   }
 
   @Get('categories')

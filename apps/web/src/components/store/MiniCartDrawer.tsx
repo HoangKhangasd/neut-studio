@@ -147,9 +147,17 @@ export function MiniCartDrawer() {
             <Link
               href="/checkout"
               onClick={closeCart}
-              className="w-full block text-center py-3.5 bg-black text-white text-xs font-extrabold uppercase tracking-widest hover:bg-neutral-800 transition-colors"
+              className="w-full block text-center py-3 bg-black text-white text-xs font-extrabold uppercase tracking-widest hover:bg-neutral-800 transition-colors"
             >
               Tiến hành thanh toán
+            </Link>
+
+            <Link
+              href="/cart"
+              onClick={closeCart}
+              className="w-full block text-center py-2.5 border border-neutral-300 text-black text-xs font-bold uppercase tracking-wider hover:border-black transition-colors"
+            >
+              Xem chi tiết giỏ hàng
             </Link>
           </div>
         )}
