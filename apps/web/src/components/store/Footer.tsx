@@ -86,14 +86,6 @@ export function Footer() {
                 </div>
                 <p className="text-[11px] text-neutral-400 pl-4.5">1023 Đê La Thành, Ba Đình</p>
               </li>
-              <li className="pt-1">
-                <Link
-                  href="/stores"
-                  className="inline-block text-xs font-bold text-white underline underline-offset-4 hover:text-neutral-300"
-                >
-                  Xem chi tiết 4 chi nhánh & tồn kho &rarr;
-                </Link>
-              </li>
             </ul>
           </div>
 

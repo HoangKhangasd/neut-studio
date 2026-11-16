@@ -71,10 +71,6 @@ export function HeaderMegaMenu() {
           <Link href="/shop?collab=true" className="text-red-600 hover:text-red-700 transition-colors">
             Collaborations
           </Link>
-
-          <Link href="/stores" className="hover:text-neutral-500 transition-colors">
-            Hệ thống cửa hàng
-          </Link>
         </nav>
 
         {/* Right action icons */}
@@ -177,9 +173,6 @@ export function HeaderMegaMenu() {
           </Link>
           <Link href="/shop?collab=true" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-red-600">
             Collaborations
-          </Link>
-          <Link href="/stores" onClick={() => setMobileMenuOpen(false)} className="block py-1">
-            Hệ thống cửa hàng
           </Link>
           {mounted && token ? (
             <Link href="/account" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-black font-mono">
