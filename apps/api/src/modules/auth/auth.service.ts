@@ -1,7 +1,7 @@
 import { Injectable, ConflictException, UnauthorizedException, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcryptjs';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { DRIZZLE } from '../../database/database.module.js';
 import { users } from '../../database/schema/index.js';
 import { RegisterDto, LoginDto } from './dto/auth.dto.js';
@@ -15,7 +15,7 @@ export class AuthService {
 
   async register(dto: RegisterDto) {
     const existing = await this.db.query.users.findFirst({
-      where: eq(users.email, dto.email.toLowerCase().trim()),
+      where: and(eq(users.email, dto.email.toLowerCase().trim()), isNull(users.deletedAt)),
     });
 
     if (existing) {
@@ -48,7 +48,7 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.db.query.users.findFirst({
-      where: eq(users.email, dto.email.toLowerCase().trim()),
+      where: and(eq(users.email, dto.email.toLowerCase().trim()), isNull(users.deletedAt)),
     });
 
     if (!user) {
@@ -68,7 +68,7 @@ export class AuthService {
 
   async getProfile(userId: string) {
     const user = await this.db.query.users.findFirst({
-      where: eq(users.id, userId),
+      where: and(eq(users.id, userId), isNull(users.deletedAt)),
     });
 
     if (!user) {
