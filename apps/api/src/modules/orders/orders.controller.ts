@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrdersService } from './orders.service.js';
 import { CreateOrderDto, AdminOrderQueryDto } from './dto/orders.dto.js';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard.js';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -13,9 +14,13 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Tạo đơn hàng mới (Trừ kho nguyên tử chống overselling)' })
-  async createOrder(@Body() dto: CreateOrderDto) {
-    return this.ordersService.createOrder(dto);
+  async createOrder(
+    @Body() dto: CreateOrderDto,
+    @CurrentUser('id') userId?: string,
+  ) {
+    return this.ordersService.createOrder(dto, userId);
   }
 
   @Get('my-orders')
@@ -27,12 +32,14 @@ export class OrdersController {
   }
 
   @Get('track/:orderCode')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Tra cứu hành trình đơn hàng theo mã đơn và SĐT khách hàng' })
   async trackOrder(
     @Param('orderCode') orderCode: string,
     @Query('phone') phone?: string,
+    @CurrentUser() user?: { id: string; role: string } | null,
   ) {
-    return this.ordersService.trackOrder(orderCode, phone);
+    return this.ordersService.trackOrder(orderCode, phone, user ?? undefined);
   }
 
   @Get('admin/all')

@@ -1,5 +1,6 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
-import { eq, sql, desc, and, inArray } from 'drizzle-orm';
+import { randomBytes } from 'crypto';
+import { eq, sql, desc, and, or, isNull, lt, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../../database/database.module.js';
 import {
   orders,
@@ -11,6 +12,20 @@ import {
 } from '../../database/schema/index.js';
 import { CreateOrderDto, AdminOrderQueryDto } from './dto/orders.dto.js';
 
+function maskPhone(phone: string): string {
+  const clean = phone.trim();
+  if (clean.length <= 6) return '***';
+  return `${clean.slice(0, 3)}****${clean.slice(-3)}`;
+}
+
+function maskEmail(email: string): string {
+  const parts = email.split('@');
+  if (parts.length !== 2) return '***';
+  const [local, domain] = parts;
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}***@${domain}`;
+}
+
 @Injectable()
 export class OrdersService {
   constructor(@Inject(DRIZZLE) private readonly db: any) {}
@@ -19,6 +34,8 @@ export class OrdersService {
     if (!dto.items || dto.items.length === 0) {
       throw new ConflictException('Đơn hàng không có sản phẩm');
     }
+
+    const authenticatedUserId = userId || null;
 
     // Run inside ACID Transaction
     return this.db.transaction(async (tx: any) => {
@@ -30,7 +47,7 @@ export class OrdersService {
           throw new ConflictException('Số lượng sản phẩm không hợp lệ');
         }
 
-        // 1. Atomic decrement with condition
+        // 1. Atomic decrement with non-deleted variant condition
         const updated = await tx
           .update(productVariants)
           .set({
@@ -39,6 +56,7 @@ export class OrdersService {
           .where(
             and(
               eq(productVariants.id, item.variantId),
+              isNull(productVariants.deletedAt),
               sql`${productVariants.stockQuantity} >= ${item.quantity}`,
             ),
           )
@@ -52,18 +70,24 @@ export class OrdersService {
 
         const variant = updated[0];
 
-        // Fetch parent product for title snapshot
+        // Fetch parent product and verify it is published and not soft-deleted
         const prod = await tx.query.products.findFirst({
           where: eq(products.id, variant.productId),
         });
 
-        const unitPrice = variant.salePrice || variant.price;
+        if (!prod || !prod.isPublished || prod.deletedAt) {
+          throw new ConflictException(
+            'Sản phẩm bạn chọn hiện không còn mở bán trên hệ thống.',
+          );
+        }
+
+        const unitPrice = variant.salePrice ?? variant.price;
         const itemTotal = unitPrice * item.quantity;
         subtotal += itemTotal;
 
         orderItemsToInsert.push({
           variantId: variant.id,
-          productTitle: prod ? prod.title : 'Sản phẩm thời trang',
+          productTitle: prod.title,
           variantSku: variant.sku,
           variantColor: variant.colorName,
           variantSize: variant.size,
@@ -93,7 +117,11 @@ export class OrdersService {
         if (coupon.endDate && new Date(coupon.endDate) < now) {
           throw new BadRequestException('Mã giảm giá đã hết hạn sử dụng');
         }
-        if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+        if (
+          coupon.usageLimit !== null &&
+          coupon.usageLimit !== undefined &&
+          coupon.usedCount >= coupon.usageLimit
+        ) {
           throw new BadRequestException('Mã giảm giá đã hết lượt sử dụng');
         }
         if (coupon.minOrderAmount && subtotal < Number(coupon.minOrderAmount)) {
@@ -102,20 +130,41 @@ export class OrdersService {
           );
         }
 
+        if (authenticatedUserId) {
+          const existingUsage = await tx.query.couponUsages.findFirst({
+            where: and(
+              eq(couponUsages.couponId, coupon.id),
+              eq(couponUsages.userId, authenticatedUserId),
+            ),
+          });
+          if (existingUsage) {
+            throw new BadRequestException('Bạn đã sử dụng mã giảm giá này trước đó');
+          }
+        }
+
         if (coupon.discountType === 'PERCENT') {
           discountAmount = Math.round((subtotal * coupon.discountValue) / 100);
-          if (coupon.maxDiscountAmount && discountAmount > Number(coupon.maxDiscountAmount)) {
+          if (
+            coupon.maxDiscountAmount !== null &&
+            coupon.maxDiscountAmount !== undefined &&
+            discountAmount > Number(coupon.maxDiscountAmount)
+          ) {
             discountAmount = Number(coupon.maxDiscountAmount);
           }
         } else {
           discountAmount = Math.min(subtotal, Number(coupon.discountValue));
         }
 
-        // Update coupon usage atomically
+        // Update coupon usage atomically (NULL-safe for unlimited coupons)
         const [updatedCoupon] = await tx
           .update(coupons)
           .set({ usedCount: sql`${coupons.usedCount} + 1` })
-          .where(and(eq(coupons.id, coupon.id), sql`${coupons.usedCount} < ${coupons.usageLimit}`))
+          .where(
+            and(
+              eq(coupons.id, coupon.id),
+              or(isNull(coupons.usageLimit), lt(coupons.usedCount, coupons.usageLimit)),
+            ),
+          )
           .returning();
 
         if (!updatedCoupon) {
@@ -132,30 +181,48 @@ export class OrdersService {
         throw new BadRequestException('Hiện tại hệ thống chỉ hỗ trợ phương thức thanh toán COD');
       }
 
-      // Generate human-friendly order code
+      // Generate high-entropy order code with SAVEPOINT retry on rare unique collision
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-      const random4 = Math.floor(1000 + Math.random() * 9000);
-      const orderCode = `NEUT-${dateStr}-${random4}`;
+      const runAttempt =
+        typeof tx.transaction === 'function'
+          ? (fn: (subTx: any) => Promise<any>) => tx.transaction(fn)
+          : (fn: (subTx: any) => Promise<any>) => fn(tx);
 
-      // Insert Order record
-      const [newOrder] = await tx
-        .insert(orders)
-        .values({
-          orderCode,
-          userId: userId || dto.userId || null,
-          customerName: dto.customerName,
-          customerPhone: dto.customerPhone,
-          customerEmail: dto.customerEmail,
-          shippingAddress: dto.shippingAddress,
-          subtotal,
-          shippingFee,
-          discountAmount,
-          totalAmount,
-          paymentMethod: 'COD',
-          paymentStatus: 'PENDING',
-          orderStatus: 'PENDING',
-        })
-        .returning();
+      let newOrder: any;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const orderCode = `NEUT-${dateStr}-${randomBytes(4).toString('hex').toUpperCase()}`;
+        try {
+          newOrder = await runAttempt(async (subTx) => {
+            const [inserted] = await subTx
+              .insert(orders)
+              .values({
+                orderCode,
+                userId: authenticatedUserId,
+                couponId: appliedCoupon ? appliedCoupon.id : null,
+                couponCode: appliedCoupon ? appliedCoupon.code : null,
+                customerName: dto.customerName,
+                customerPhone: dto.customerPhone,
+                customerEmail: dto.customerEmail,
+                shippingAddress: dto.shippingAddress,
+                subtotal,
+                shippingFee,
+                discountAmount,
+                totalAmount,
+                paymentMethod: 'COD',
+                paymentStatus: 'PENDING',
+                orderStatus: 'PENDING',
+              })
+              .returning();
+            return inserted;
+          });
+          break;
+        } catch (err: any) {
+          if (err?.code === '23505' && attempt < 2) {
+            continue;
+          }
+          throw err;
+        }
+      }
 
       // Insert Order Items
       for (const itemRecord of orderItemsToInsert) {
@@ -165,12 +232,12 @@ export class OrdersService {
         });
       }
 
-      if (appliedCoupon && (userId || dto.userId)) {
+      if (appliedCoupon && authenticatedUserId) {
         await tx.insert(couponUsages).values({
           couponId: appliedCoupon.id,
-          userId: userId || dto.userId,
+          userId: authenticatedUserId,
           orderId: newOrder.id,
-        }).catch(() => {});
+        });
       }
 
       return {
@@ -187,37 +254,48 @@ export class OrdersService {
       .where(eq(orders.userId, userId))
       .orderBy(desc(orders.createdAt));
 
-    const results = [];
-    for (const order of orderList) {
-      const items = await this.db
-        .select()
-        .from(orderItems)
-        .where(eq(orderItems.orderId, order.id));
-      results.push({
-        ...order,
-        items,
-      });
+    if (orderList.length === 0) {
+      return [];
     }
-    return results;
+
+    const orderIds = orderList.map((o: any) => o.id);
+    const items = await this.db
+      .select()
+      .from(orderItems)
+      .where(inArray(orderItems.orderId, orderIds));
+
+    return orderList.map((order: any) => ({
+      ...order,
+      items: items.filter((item: any) => item.orderId === order.id),
+    }));
   }
 
-  async trackOrder(orderCode: string, phone?: string) {
+  async trackOrder(
+    orderCode: string,
+    phone?: string,
+    currentUser?: { id: string; role: string },
+  ) {
     const code = orderCode.toUpperCase().trim();
-    const conditions: any[] = [eq(orders.orderCode, code)];
-    if (phone && phone.trim()) {
-      conditions.push(eq(orders.customerPhone, phone.trim()));
-    }
-
     const order = await this.db.query.orders.findFirst({
-      where: and(...conditions),
+      where: eq(orders.orderCode, code),
     });
 
-    if (!order) {
-      throw new NotFoundException(
-        phone && phone.trim()
-          ? 'Không tìm thấy đơn hàng với mã đơn và số điện thoại đã nhập'
-          : 'Không tìm thấy thông tin đơn hàng này',
-      );
+    const isPrivilegedOwner =
+      !!currentUser &&
+      !!order &&
+      (currentUser.role === 'ADMIN' || (!!order.userId && order.userId === currentUser.id));
+
+    if (!isPrivilegedOwner) {
+      if (!phone || !phone.trim()) {
+        throw new BadRequestException('Vui lòng nhập số điện thoại đặt hàng để tra cứu');
+      }
+      if (!order || order.customerPhone.trim() !== phone.trim()) {
+        throw new NotFoundException(
+          'Không tìm thấy đơn hàng với mã đơn và số điện thoại đã nhập',
+        );
+      }
+    } else if (!order) {
+      throw new NotFoundException('Không tìm thấy thông tin đơn hàng này');
     }
 
     const items = await this.db
@@ -225,8 +303,23 @@ export class OrdersService {
       .from(orderItems)
       .where(eq(orderItems.orderId, order.id));
 
+    if (isPrivilegedOwner) {
+      return {
+        ...order,
+        items,
+      };
+    }
+
+    const maskedAddress =
+      order.shippingAddress && typeof order.shippingAddress === 'object'
+        ? { ...order.shippingAddress, street: '***' }
+        : '***';
+
     return {
       ...order,
+      customerPhone: maskPhone(order.customerPhone),
+      customerEmail: maskEmail(order.customerEmail),
+      shippingAddress: maskedAddress,
       items,
     };
   }
@@ -322,7 +415,18 @@ export class OrdersService {
         );
       }
 
-      // If cancelling, restore inventory to product_variants
+      // Conditional atomic transition prevents concurrent double-cancel / double stock restore
+      const [updated] = await tx
+        .update(orders)
+        .set({ orderStatus: newStatus, updatedAt: new Date() })
+        .where(and(eq(orders.id, id), eq(orders.orderStatus, currentStatus)))
+        .returning();
+
+      if (!updated) {
+        throw new ConflictException('Trạng thái đơn hàng đã thay đổi, vui lòng tải lại');
+      }
+
+      // Only after atomic transition succeeds: restore inventory and roll back coupon usage
       if (newStatus === 'CANCELLED' && currentStatus !== 'CANCELLED') {
         const items = await tx
           .select()
@@ -340,13 +444,18 @@ export class OrdersService {
               .where(eq(productVariants.id, item.variantId));
           }
         }
-      }
 
-      const [updated] = await tx
-        .update(orders)
-        .set({ orderStatus: newStatus, updatedAt: new Date() })
-        .where(eq(orders.id, id))
-        .returning();
+        if (currentOrder.couponId) {
+          await tx
+            .update(coupons)
+            .set({
+              usedCount: sql`GREATEST(0, ${coupons.usedCount} - 1)`,
+            })
+            .where(eq(coupons.id, currentOrder.couponId));
+
+          await tx.delete(couponUsages).where(eq(couponUsages.orderId, id));
+        }
+      }
 
       return updated;
     });

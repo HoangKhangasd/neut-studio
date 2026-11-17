@@ -56,11 +56,6 @@ export class CreateOrderDto {
   @IsString()
   @IsOptional()
   couponCode?: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  userId?: string;
 }
 
 export class AdminOrderQueryDto {

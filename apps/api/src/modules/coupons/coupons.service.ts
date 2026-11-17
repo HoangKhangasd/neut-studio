@@ -29,7 +29,11 @@ export class CouponsService {
       throw new BadRequestException('Mã giảm giá đã hết hạn sử dụng');
     }
 
-    if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+    if (
+      coupon.usageLimit !== null &&
+      coupon.usageLimit !== undefined &&
+      coupon.usedCount >= coupon.usageLimit
+    ) {
       throw new BadRequestException('Mã giảm giá đã hết lượt sử dụng');
     }
 
