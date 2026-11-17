@@ -185,6 +185,25 @@ export class UpdateProductAdminDto {
   }>;
 }
 
+export class AdminProductQueryDto {
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  page?: number;
+
+  @ApiPropertyOptional({ default: 10 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  limit?: number;
+
+  @ApiPropertyOptional({ example: 'ao-thun' })
+  @IsOptional()
+  @IsString()
+  search?: string;
+}
+
 export class CreateProductAdminDto {
   @ApiProperty({ example: 'Áo Thun Neut Basic Monogram' })
   @IsString()

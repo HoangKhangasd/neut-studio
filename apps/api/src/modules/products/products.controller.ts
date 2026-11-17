@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ProductsService } from './products.service.js';
 import {
   ProductQueryDto,
+  AdminProductQueryDto,
   FitFinderDto,
   CreateReviewDto,
   UpdateVariantStockDto,
@@ -24,9 +25,9 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Admin lấy toàn bộ sản phẩm và tồn kho biến thể' })
-  async getAdminProducts() {
-    return this.productsService.getAdminProducts();
+  @ApiOperation({ summary: 'Admin lấy danh sách sản phẩm và tồn kho biến thể kèm phân trang và tìm kiếm' })
+  async getAdminProducts(@Query() query: AdminProductQueryDto) {
+    return this.productsService.getAdminProducts(query);
   }
 
   @Post('products/admin')

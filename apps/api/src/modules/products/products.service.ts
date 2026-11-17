@@ -14,6 +14,7 @@ import {
 } from '../../database/schema/index.js';
 import {
   ProductQueryDto,
+  AdminProductQueryDto,
   FitFinderDto,
   CreateReviewDto,
   UpdateVariantStockDto,
@@ -392,45 +393,81 @@ export class ProductsService {
   }
 
   // ===================== ADMIN PRODUCT MANAGEMENT =====================
-  async getAdminProducts() {
+  async getAdminProducts(query?: AdminProductQueryDto) {
+    const page = Math.max(1, Number(query?.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(query?.limit) || 10));
+    const offset = (page - 1) * limit;
+
+    const conditions: any[] = [sql`${products.deletedAt} IS NULL`];
+    if (query?.search?.trim()) {
+      const term = `%${query.search.trim()}%`;
+      conditions.push(or(ilike(products.title, term), ilike(products.slug, term)));
+    }
+    const whereClause = and(...conditions);
+
+    const [{ count }] = await this.db
+      .select({ count: sql`count(*)` })
+      .from(products)
+      .where(whereClause);
+
+    const total = Number(count);
+    const totalPages = Math.ceil(total / limit);
+
     const prods = await this.db
       .select()
       .from(products)
-      .where(sql`${products.deletedAt} IS NULL`)
-      .orderBy(desc(products.createdAt));
+      .where(whereClause)
+      .orderBy(desc(products.createdAt))
+      .limit(limit)
+      .offset(offset);
 
-    const results = [];
-    for (const prod of prods) {
-      const vars = await this.db
+    if (prods.length === 0) {
+      return { data: [], total, page, totalPages };
+    }
+
+    const productIds = prods.map((p: any) => p.id);
+    const categoryIds = Array.from(
+      new Set(prods.map((p: any) => p.categoryId).filter(Boolean)),
+    ) as string[];
+
+    const [variants, images, categoryRows] = await Promise.all([
+      this.db
         .select()
         .from(productVariants)
-        .where(eq(productVariants.productId, prod.id));
-
-      const imgs = await this.db
+        .where(
+          and(
+            inArray(productVariants.productId, productIds),
+            sql`${productVariants.deletedAt} IS NULL`,
+          ),
+        ),
+      this.db
         .select()
         .from(productImages)
-        .where(eq(productImages.productId, prod.id))
-        .orderBy(asc(productImages.sortOrder));
+        .where(inArray(productImages.productId, productIds))
+        .orderBy(asc(productImages.sortOrder)),
+      categoryIds.length > 0
+        ? this.db.select().from(categories).where(inArray(categories.id, categoryIds))
+        : Promise.resolve([]),
+    ]);
 
-      let category = null;
-      if (prod.categoryId) {
-        category = await this.db.query.categories.findFirst({
-          where: eq(categories.id, prod.categoryId),
-        });
-      }
+    const categoryMap = new Map(categoryRows.map((c: any) => [c.id, c]));
 
+    const data = prods.map((prod: any) => {
+      const vars = variants.filter((v: any) => v.productId === prod.id);
+      const imgs = images.filter((img: any) => img.productId === prod.id);
       const prices = vars.map((v: any) => v.salePrice || v.price);
       const basePrice = prices.length ? Math.min(...prices) : 0;
 
-      results.push({
+      return {
         ...prod,
         basePrice,
-        category,
+        category: prod.categoryId ? categoryMap.get(prod.categoryId) ?? null : null,
         variants: vars,
         images: imgs,
-      });
-    }
-    return results;
+      };
+    });
+
+    return { data, total, page, totalPages };
   }
 
   async updateVariantInventory(variantId: string, dto: UpdateVariantStockDto) {
