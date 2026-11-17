@@ -1,8 +1,9 @@
 import { pgTable, uuid, varchar, text, boolean, timestamp, uniqueIndex } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
+  email: varchar('email', { length: 255 }).notNull(),
   passwordHash: varchar('password_hash', { length: 255 }).notNull(),
   fullName: varchar('full_name', { length: 100 }).notNull(),
   phone: varchar('phone', { length: 20 }),
@@ -11,7 +12,9 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
-});
+}, (table) => [
+  uniqueIndex('idx_users_email_active').on(table.email).where(sql`${table.deletedAt} IS NULL`),
+]);
 
 export const userAddresses = pgTable('user_addresses', {
   id: uuid('id').defaultRandom().primaryKey(),

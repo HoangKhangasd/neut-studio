@@ -21,14 +21,6 @@ export const coupons = pgTable('coupons', {
   check('chk_coupon_usage_limit', sql`${table.usedCount} <= ${table.usageLimit}`),
 ]);
 
-export const couponUsages = pgTable('coupon_usages', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  couponId: uuid('coupon_id').notNull().references(() => coupons.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  orderId: uuid('order_id').notNull(),
-  usedAt: timestamp('used_at', { withTimezone: true }).defaultNow().notNull(),
-});
-
 export const lookbooks = pgTable('lookbooks', {
   id: uuid('id').defaultRandom().primaryKey(),
   title: varchar('title', { length: 200 }).notNull(),

@@ -5,7 +5,7 @@ import { products } from './products.schema.js';
 export const productVariants = pgTable('product_variants', {
   id: uuid('id').defaultRandom().primaryKey(),
   productId: uuid('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
-  sku: varchar('sku', { length: 100 }).notNull().unique(),
+  sku: varchar('sku', { length: 100 }).notNull(),
   colorName: varchar('color_name', { length: 50 }).notNull(),
   colorHex: varchar('color_hex', { length: 10 }).notNull(),
   size: varchar('size', { length: 20 }).notNull(), // 'S', 'M', 'L', 'XL', '28', '30', 'Freesize'
@@ -16,8 +16,11 @@ export const productVariants = pgTable('product_variants', {
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 }, (table) => [
-  uniqueIndex('idx_variant_product_color_size').on(table.productId, table.colorName, table.size),
+  uniqueIndex('idx_variant_sku_active').on(table.sku).where(sql`${table.deletedAt} IS NULL`),
+  uniqueIndex('idx_variant_product_color_size_active')
+    .on(table.productId, table.colorName, table.size)
+    .where(sql`${table.deletedAt} IS NULL`),
   check('chk_stock_non_negative', sql`${table.stockQuantity} >= 0`),
   check('chk_price_positive', sql`${table.price} >= 0`),
-  check('chk_sale_price_valid', sql`${table.salePrice} IS NULL OR ${table.salePrice} <= ${table.price}`),
+  check('chk_sale_price_non_negative_valid', sql`${table.salePrice} IS NULL OR (${table.salePrice} >= 0 AND ${table.salePrice} <= ${table.price})`),
 ]);
