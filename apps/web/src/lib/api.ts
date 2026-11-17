@@ -109,14 +109,17 @@ export async function subscribeNewsletter(phone: string) {
   return res.json();
 }
 
-export async function createOrder(data: any) {
+export async function createOrder(data: any, token?: string | null) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const res = await fetch(`${API_BASE}/orders`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(data),
   });
   if (!res.ok) {
-    const err = await res.json();
+    const err = await res.json().catch(() => ({}));
     throw new Error(err.message || 'Lỗi khi đặt hàng');
   }
   return res.json();
@@ -132,8 +135,12 @@ export async function fetchStores(): Promise<StoreLocation[]> {
   }
 }
 
-export async function trackOrder(orderCode: string) {
+export async function trackOrder(orderCode: string, token?: string | null) {
+  const headers: Record<string, string> = {};
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
   const res = await fetch(`${API_BASE}/orders/track/${encodeURIComponent(orderCode)}`, {
+    headers,
     cache: 'no-store',
   });
   if (!res.ok) {
@@ -289,13 +296,27 @@ export async function trackGuestOrder(orderCode: string, phone?: string): Promis
   return res.json();
 }
 
-export async function uploadReviewImageToMinIO(file: File): Promise<string> {
+export async function uploadReviewImageToMinIO(
+  file: File,
+  token: string,
+  folder: 'products' | 'reviews' = 'reviews',
+): Promise<string> {
   const presignRes = await fetch(`${API_BASE}/storage/presigned-url`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fileName: file.name, contentType: file.type || 'image/jpeg' }),
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      fileName: file.name,
+      contentType: file.type || 'image/jpeg',
+      folder,
+    }),
   });
-  if (!presignRes.ok) throw new Error('Không thể khởi tạo liên kết tải ảnh lên MinIO');
+  if (!presignRes.ok) {
+    const err = await presignRes.json().catch(() => ({}));
+    throw new Error(err.message || 'Không thể khởi tạo liên kết tải ảnh lên MinIO');
+  }
   const { uploadUrl, publicUrl } = await presignRes.json();
 
   const putRes = await fetch(uploadUrl, {

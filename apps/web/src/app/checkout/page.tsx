@@ -24,7 +24,7 @@ import { createOrder, validateCoupon } from '../../lib/api';
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, getSubtotal, clearCart } = useCartStore();
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
 
   const subtotal = getSubtotal();
   const shippingFee = subtotal >= 1000000 || subtotal === 0 ? 0 : 30000;
@@ -104,7 +104,6 @@ export default function CheckoutPage() {
 
     try {
       const payload = {
-        userId: user?.id || undefined,
         customerName: formData.customerName.trim(),
         customerPhone: formData.customerPhone.trim(),
         customerEmail: formData.customerEmail?.trim() || user?.email || undefined,
@@ -122,7 +121,11 @@ export default function CheckoutPage() {
         couponCode: appliedCoupon || undefined,
       };
 
-      const result = await createOrder(payload);
+      const result = await createOrder(payload, token);
+
+      try {
+        sessionStorage.setItem('neut_last_order', JSON.stringify(result));
+      } catch {}
 
       // Clear Zustand cart
       clearCart();

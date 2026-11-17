@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { X, Star, Upload, Trash2, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { submitProductReview, uploadReviewImageToMinIO } from '../../lib/api';
+import { useAuthStore } from '../../stores/auth-store';
 
 interface WriteReviewModalProps {
   isOpen: boolean;
@@ -20,10 +21,11 @@ export function WriteReviewModal({
   productTitle,
   onSuccess,
 }: WriteReviewModalProps) {
+  const { token, user } = useAuthStore();
   const [rating, setRating] = useState(5);
   const [hoverRating, setHoverRating] = useState(0);
   const [fitScore, setFitScore] = useState(0); // -1: Tight, 0: True to size, 1: Loose
-  const [customerName, setCustomerName] = useState('');
+  const [customerName, setCustomerName] = useState(user?.fullName || '');
   const [heightCm, setHeightCm] = useState<number | ''>(172);
   const [weightKg, setWeightKg] = useState<number | ''>(65);
   const [purchasedSize, setPurchasedSize] = useState('L');
@@ -39,6 +41,11 @@ export function WriteReviewModal({
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
+    if (!token) {
+      setErrorMsg('Vui lòng đăng nhập để tải ảnh đánh giá.');
+      e.target.value = '';
+      return;
+    }
 
     setUploadingImage(true);
     setErrorMsg('');
@@ -49,11 +56,11 @@ export function WriteReviewModal({
           setErrorMsg('Kích thước ảnh tối đa 5MB');
           continue;
         }
-        const url = await uploadReviewImageToMinIO(file);
+        const url = await uploadReviewImageToMinIO(file, token, 'reviews');
         setImages((prev) => [...prev, url]);
       }
-    } catch {
-      setErrorMsg('Tải ảnh lên MinIO thất bại, vui lòng thử lại.');
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Tải ảnh lên MinIO thất bại, vui lòng thử lại.');
     } finally {
       setUploadingImage(false);
       e.target.value = '';
@@ -75,19 +82,28 @@ export function WriteReviewModal({
       return;
     }
 
+    if (!token) {
+      setErrorMsg('Vui lòng đăng nhập để gửi đánh giá sản phẩm');
+      return;
+    }
+
     setSubmitting(true);
     setErrorMsg('');
     try {
-      await submitProductReview(productSlug, {
-        customerName: customerName.trim(),
-        rating,
-        fitScore,
-        userHeightCm: heightCm ? Number(heightCm) : undefined,
-        userWeightKg: weightKg ? Number(weightKg) : undefined,
-        purchasedSize,
-        comment: comment.trim(),
-        images,
-      });
+      await submitProductReview(
+        productSlug,
+        {
+          customerName: customerName.trim(),
+          rating,
+          fitScore,
+          userHeightCm: heightCm ? Number(heightCm) : undefined,
+          userWeightKg: weightKg ? Number(weightKg) : undefined,
+          purchasedSize,
+          comment: comment.trim(),
+          images,
+        },
+        token,
+      );
 
       onSuccess();
       onClose();

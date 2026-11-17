@@ -32,6 +32,7 @@ export interface Product {
   materialAndCare?: string;
   sizeGuideHtml?: string;
   categoryId?: string;
+  category?: Category | null;
   isPublished: boolean;
   isFeatured: boolean;
   minPrice: number;
@@ -175,6 +176,7 @@ export interface AdminProduct {
   isPublished: boolean;
   isFeatured: boolean;
   createdAt: string;
+  categoryId?: string | null;
   category?: Category | null;
   variants: ProductVariant[];
   images: ProductImage[];

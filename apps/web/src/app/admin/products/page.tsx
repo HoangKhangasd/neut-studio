@@ -205,14 +205,14 @@ export default function AdminProductsPage() {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
+    if (!e.target.files || e.target.files.length === 0 || !token) return;
     const file = e.target.files[0];
     const localPreview = URL.createObjectURL(file);
     setIsUploadingImage(true);
     setCreateError('');
 
     try {
-      const publicUrl = await uploadReviewImageToMinIO(file);
+      const publicUrl = await uploadReviewImageToMinIO(file, token, 'products');
       setNewImages((prev) => [...prev, { previewUrl: localPreview, minioUrl: publicUrl }]);
     } catch (err: any) {
       URL.revokeObjectURL(localPreview);

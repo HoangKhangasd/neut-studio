@@ -18,10 +18,12 @@ import {
 } from 'lucide-react';
 import { trackOrder } from '../../lib/api';
 import { formatVND } from '../../lib/utils';
+import { useAuthStore } from '../../stores/auth-store';
 
 export function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const orderCode = searchParams.get('code') || '';
+  const { token } = useAuthStore();
 
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -40,16 +42,66 @@ export function OrderSuccessContent() {
     } catch {
       // Ignored if confetti fails in SSR
     }
+  }, []);
 
-    if (orderCode) {
-      trackOrder(orderCode)
-        .then((res) => setOrder(res))
-        .catch((err) => setError(err.message || 'Không thể tải thông tin đơn hàng'))
-        .finally(() => setLoading(false));
-    } else {
+  useEffect(() => {
+    if (!orderCode) {
       setLoading(false);
+      return;
     }
-  }, [orderCode]);
+
+    let cancelled = false;
+
+    const readCachedOrder = () => {
+      try {
+        const raw = sessionStorage.getItem('neut_last_order');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed?.orderCode?.toUpperCase() === orderCode.toUpperCase() ? parsed : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const loadOrder = async () => {
+      setLoading(true);
+      setError('');
+
+      if (token) {
+        try {
+          const res = await trackOrder(orderCode, token);
+          if (!cancelled) setOrder(res);
+          return;
+        } catch (err: any) {
+          const cached = readCachedOrder();
+          if (cached) {
+            if (!cancelled) setOrder(cached);
+            return;
+          }
+          if (!cancelled) setError(err.message || 'Không thể tải thông tin đơn hàng');
+          return;
+        }
+      }
+
+      const cached = readCachedOrder();
+      if (cached) {
+        if (!cancelled) setOrder(cached);
+        return;
+      }
+
+      if (!cancelled) {
+        setError('Vui lòng xác minh số điện thoại tại trang Tra cứu đơn hàng để xem chi tiết đơn này.');
+      }
+    };
+
+    loadOrder().finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orderCode, token]);
 
   const copyOrderCode = () => {
     if (orderCode) {
@@ -80,12 +132,22 @@ export function OrderSuccessContent() {
         <p className="text-xs text-neutral-600 font-mono mb-6">
           Vui lòng kiểm tra lại mã đơn hàng hoặc liên hệ bộ phận hỗ trợ khách hàng.
         </p>
-        <Link
-          href="/shop"
-          className="px-6 py-3 bg-black text-white text-xs font-bold uppercase tracking-wider"
-        >
-          Quay lại cửa hàng
-        </Link>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {orderCode && (
+            <Link
+              href={`/track-order?code=${encodeURIComponent(orderCode)}`}
+              className="px-6 py-3 bg-black text-white text-xs font-bold uppercase tracking-wider"
+            >
+              Tra cứu bằng SĐT
+            </Link>
+          )}
+          <Link
+            href="/shop"
+            className="px-6 py-3 border border-black bg-white text-black text-xs font-bold uppercase tracking-wider"
+          >
+            Quay lại cửa hàng
+          </Link>
+        </div>
       </div>
     );
   }

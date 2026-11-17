@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Search, Package, Clock, CheckCircle2, Truck, AlertCircle, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { trackGuestOrder } from '../../lib/api';
@@ -22,10 +22,21 @@ export default function TrackOrderPage() {
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<CustomerOrder | null>(null);
 
+  useEffect(() => {
+    const codeParam = new URLSearchParams(window.location.search).get('code');
+    if (codeParam) {
+      setOrderCode(codeParam);
+    }
+  }, []);
+
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!orderCode.trim()) {
       setError('Vui lòng nhập mã đơn hàng của bạn');
+      return;
+    }
+    if (!phone.trim()) {
+      setError('Vui lòng nhập số điện thoại đặt hàng để xác minh');
       return;
     }
 
@@ -97,7 +108,7 @@ export default function TrackOrderPage() {
 
               <div>
                 <label className="block text-xs font-black uppercase tracking-wider text-black mb-1.5">
-                  SỐ ĐIỆN THOẠI ĐẶT HÀNG (NẾU CÓ)
+                  SỐ ĐIỆN THOẠI ĐẶT HÀNG (BẮT BUỘC) *
                 </label>
                 <input
                   type="tel"
@@ -105,6 +116,7 @@ export default function TrackOrderPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-300 font-mono text-xs focus:outline-none focus:border-black"
+                  required
                 />
               </div>
             </div>

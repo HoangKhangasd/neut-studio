@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { CartItem } from '../lib/types';
+import { computeNextCartItems } from './cart-guard';
 
 interface CartState {
   items: CartItem[];
@@ -31,23 +32,9 @@ export const useCartStore = create<CartState>()(
       closeSearch: () => set({ isSearchOpen: false }),
 
       addItem: (item, quantity = 1) => {
-        const { items } = get();
-        const existingIndex = items.findIndex((i) => i.variantId === item.variantId);
-
-        if (existingIndex > -1) {
-          const updatedItems = [...items];
-          const newQty = Math.min(
-            updatedItems[existingIndex].maxStock,
-            updatedItems[existingIndex].quantity + quantity,
-          );
-          updatedItems[existingIndex].quantity = newQty;
-          set({ items: updatedItems, isCartOpen: true });
-        } else {
-          set({
-            items: [...items, { ...item, quantity: Math.min(item.maxStock, quantity) }],
-            isCartOpen: true,
-          });
-        }
+        const nextItems = computeNextCartItems(get().items, item, quantity);
+        if (!nextItems) return;
+        set({ items: nextItems, isCartOpen: true });
       },
 
       removeItem: (variantId) => {
