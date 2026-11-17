@@ -7,6 +7,7 @@ import {
   ReviewStats,
   CustomerOrder,
   AdminProduct,
+  PaginatedResponse,
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
@@ -336,8 +337,17 @@ export async function fetchMyOrders(token: string): Promise<CustomerOrder[]> {
   return res.json();
 }
 
-export async function fetchAdminProducts(token: string): Promise<AdminProduct[]> {
-  const res = await fetch(`${API_BASE}/products/admin/all`, {
+export async function fetchAdminProducts(
+  token: string,
+  params?: { page?: number; limit?: number; search?: string },
+): Promise<PaginatedResponse<AdminProduct>> {
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.search?.trim()) query.set('search', params.search.trim());
+
+  const url = `${API_BASE}/products/admin/all${query.toString() ? `?${query.toString()}` : ''}`;
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
     cache: 'no-store',
   });

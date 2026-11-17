@@ -16,14 +16,20 @@ import {
 } from 'lucide-react';
 import { fetchAdminOrders, updateAdminOrderStatus } from '../../../lib/api';
 import { formatVND } from '../../../lib/utils';
+import {
+  AdminPagination,
+  DEFAULT_ADMIN_PAGE_SIZE,
+} from '../../../components/admin/AdminPagination';
 
 export default function AdminOrdersPage() {
   const [token, setToken] = useState<string | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(DEFAULT_ADMIN_PAGE_SIZE);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -51,7 +57,7 @@ export default function AdminOrdersPage() {
     if (token) {
       loadOrders();
     }
-  }, [token, statusFilter, page]);
+  }, [token, statusFilter, page, limit, appliedSearch]);
 
   const loadOrders = async () => {
     if (!token) return;
@@ -61,14 +67,20 @@ export default function AdminOrdersPage() {
     try {
       const res = await fetchAdminOrders(token, {
         page,
-        limit: 15,
+        limit,
         status: statusFilter,
-        search: searchTerm,
+        search: appliedSearch,
       });
+
+      const nextTotalPages = res.totalPages || 0;
+      if (nextTotalPages > 0 && page > nextTotalPages) {
+        setPage(nextTotalPages);
+        return;
+      }
 
       setOrders(res.data || []);
       setTotalCount(res.total || 0);
-      setTotalPages(res.totalPages || 1);
+      setTotalPages(Math.max(1, nextTotalPages));
     } catch (err: any) {
       if (err.status === 401 || err.status === 403) {
         localStorage.removeItem('neut_admin_token');
@@ -83,8 +95,21 @@ export default function AdminOrdersPage() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const nextSearch = searchTerm.trim();
+    if (nextSearch === appliedSearch && page === 1) {
+      loadOrders();
+      return;
+    }
+    setAppliedSearch(nextSearch);
     setPage(1);
-    loadOrders();
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    if (appliedSearch !== '' || page !== 1) {
+      setAppliedSearch('');
+      setPage(1);
+    }
   };
 
   const handleStatusChange = async (orderId: string, currentStatus: string, newStatus: string) => {
@@ -221,6 +246,16 @@ export default function AdminOrdersPage() {
             placeholder="Mã đơn, tên, số điện thoại..."
             className="flex-1 border border-neutral-300 p-2 text-xs font-mono focus:border-black outline-hidden bg-white"
           />
+          {(searchTerm || appliedSearch) && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              title="Xóa từ khóa tìm kiếm"
+              className="px-2.5 py-2 border border-neutral-300 bg-white text-neutral-600 hover:border-black hover:text-black cursor-pointer"
+            >
+              <X size={14} />
+            </button>
+          )}
           <button
             type="submit"
             className="px-3 py-2 bg-black text-white hover:bg-neutral-800 cursor-pointer"
@@ -317,29 +352,19 @@ export default function AdminOrdersPage() {
         )}
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="p-3 border-t border-neutral-200 flex items-center justify-between text-xs font-mono bg-neutral-50">
-            <span className="text-neutral-500">
-              Trang {page} / {totalPages}
-            </span>
-            <div className="flex gap-2">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-3 py-1 border border-neutral-300 bg-white hover:border-black disabled:opacity-40"
-              >
-                Trước
-              </button>
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="px-3 py-1 border border-neutral-300 bg-white hover:border-black disabled:opacity-40"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        )}
+        <AdminPagination
+          page={page}
+          totalPages={totalPages}
+          total={totalCount}
+          limit={limit}
+          currentCount={orders.length}
+          disabled={loading}
+          onPageChange={setPage}
+          onLimitChange={(newLimit) => {
+            setLimit(newLimit);
+            setPage(1);
+          }}
+        />
       </div>
 
       {/* Order Detail Modal */}

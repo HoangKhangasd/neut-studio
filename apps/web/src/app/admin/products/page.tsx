@@ -29,6 +29,10 @@ import {
 import { formatVND } from '../../../lib/utils';
 import { AdminProduct, Category } from '../../../lib/types';
 import { EditProductModal } from '../../../components/admin/EditProductModal';
+import {
+  AdminPagination,
+  DEFAULT_ADMIN_PAGE_SIZE,
+} from '../../../components/admin/AdminPagination';
 
 export default function AdminProductsPage() {
   const [token, setToken] = useState<string | null>(null);
@@ -36,6 +40,11 @@ export default function AdminProductsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(DEFAULT_ADMIN_PAGE_SIZE);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
 
   // Modals & Action States
@@ -68,10 +77,15 @@ export default function AdminProductsPage() {
 
   useEffect(() => {
     if (token) {
-      loadProducts();
       fetchCategories().then(setCategories).catch(() => {});
     }
   }, [token]);
+
+  useEffect(() => {
+    if (token) {
+      loadProducts();
+    }
+  }, [token, page, limit, appliedSearch]);
 
   const loadProducts = async () => {
     if (!token) return;
@@ -79,8 +93,21 @@ export default function AdminProductsPage() {
     setErrorMessage('');
 
     try {
-      const data = await fetchAdminProducts(token);
-      setProducts(data);
+      const res = await fetchAdminProducts(token, {
+        page,
+        limit,
+        search: appliedSearch,
+      });
+
+      const nextTotalPages = res.totalPages || 0;
+      if (nextTotalPages > 0 && page > nextTotalPages) {
+        setPage(nextTotalPages);
+        return;
+      }
+
+      setProducts(res.data || []);
+      setTotalCount(res.total || 0);
+      setTotalPages(Math.max(1, nextTotalPages));
     } catch (err: any) {
       if (err.status === 401 || err.status === 403) {
         localStorage.removeItem('neut_admin_token');
@@ -90,6 +117,25 @@ export default function AdminProductsPage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const nextSearch = searchTerm.trim();
+    if (nextSearch === appliedSearch && page === 1) {
+      loadProducts();
+      return;
+    }
+    setAppliedSearch(nextSearch);
+    setPage(1);
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    if (appliedSearch !== '' || page !== 1) {
+      setAppliedSearch('');
+      setPage(1);
     }
   };
 
@@ -115,7 +161,11 @@ export default function AdminProductsPage() {
     setDeletingId(productId);
     try {
       await deleteAdminProduct(productId, token);
-      setProducts((prev) => prev.filter((p) => p.id !== productId));
+      if (products.length === 1 && page > 1) {
+        setPage((p) => p - 1);
+      } else {
+        await loadProducts();
+      }
     } catch (err: any) {
       alert(err.message || 'Xóa sản phẩm thất bại');
     } finally {
@@ -213,7 +263,11 @@ export default function AdminProductsPage() {
         setNewDescription('');
         setNewImages([]);
         setCreateSuccess('');
-        loadProducts();
+        if (page !== 1) {
+          setPage(1);
+        } else {
+          loadProducts();
+        }
       }, 700);
     } catch (err: any) {
       setCreateError(err.message || 'Tạo sản phẩm thất bại');
@@ -221,12 +275,6 @@ export default function AdminProductsPage() {
       setIsCreatingProduct(false);
     }
   };
-
-  const filteredProducts = products.filter(
-    (p) =>
-      p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.slug.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
 
   return (
     <div className="space-y-6">
@@ -237,7 +285,7 @@ export default function AdminProductsPage() {
             QUẢN LÝ KHO SẢN PHẨM
           </h1>
           <p className="text-xs font-mono text-neutral-500">
-            Hiện có: <strong>{products.length}</strong> sản phẩm trong danh mục
+            Hiện có: <strong>{totalCount}</strong> sản phẩm trong danh mục
           </p>
         </div>
 
@@ -267,19 +315,32 @@ export default function AdminProductsPage() {
         </div>
       )}
 
-      {/* Search Input */}
-      <div className="max-w-md">
-        <div className="relative">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm theo tên sản phẩm hoặc slug..."
-            className="w-full border border-neutral-300 p-2 pl-8 text-xs font-mono focus:border-black outline-hidden bg-white"
-          />
-          <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-3" />
-        </div>
-      </div>
+      {/* Search Form */}
+      <form onSubmit={handleSearchSubmit} className="flex gap-2 max-w-md">
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Tìm theo tên sản phẩm hoặc slug..."
+          className="flex-1 border border-neutral-300 p-2 text-xs font-mono focus:border-black outline-hidden bg-white"
+        />
+        {(searchTerm || appliedSearch) && (
+          <button
+            type="button"
+            onClick={handleClearSearch}
+            title="Xóa từ khóa tìm kiếm"
+            className="px-2.5 py-2 border border-neutral-300 bg-white text-neutral-600 hover:border-black hover:text-black cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        )}
+        <button
+          type="submit"
+          className="px-3 py-2 bg-black text-white hover:bg-neutral-800 cursor-pointer"
+        >
+          <Search size={14} />
+        </button>
+      </form>
 
       {/* Products List */}
       {loading ? (
@@ -287,13 +348,13 @@ export default function AdminProductsPage() {
           <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-black" />
           <span>ĐANG TẢI DANH SÁCH SẢN PHẨM...</span>
         </div>
-      ) : filteredProducts.length === 0 ? (
+      ) : products.length === 0 ? (
         <div className="p-12 text-center text-xs font-mono text-neutral-500 border-2 border-black bg-white">
           KHÔNG TÌM THẤY SẢN PHẨM NÀO
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          {filteredProducts.map((prod) => {
+          {products.map((prod) => {
             const coverImg =
               prod.images?.[0]?.imageUrl ||
               'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800';
@@ -437,6 +498,25 @@ export default function AdminProductsPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalCount > 0 && (
+        <div className="border-2 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
+          <AdminPagination
+            page={page}
+            totalPages={totalPages}
+            total={totalCount}
+            limit={limit}
+            currentCount={products.length}
+            disabled={loading}
+            onPageChange={setPage}
+            onLimitChange={(newLimit) => {
+              setLimit(newLimit);
+              setPage(1);
+            }}
+          />
         </div>
       )}
 

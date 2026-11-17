@@ -21,6 +21,8 @@ export default function AdminDashboardPage() {
   const [token, setToken] = useState<string | null>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalProducts, setTotalProducts] = useState(0);
   const [loading, setLoading] = useState(false);
   const [stockUpdatingId, setStockUpdatingId] = useState<string | null>(null);
 
@@ -42,13 +44,18 @@ export default function AdminDashboardPage() {
     setLoading(true);
 
     try {
+      // shortcut: dashboard loads up to 100 orders/products, move to a dedicated stats endpoint once catalog or orders exceed 100
       const [ordersRes, prodsRes] = await Promise.all([
-        fetchAdminOrders(token, { limit: 100 }),
-        fetchAdminProducts(token),
+        fetchAdminOrders(token, { page: 1, limit: 100 }),
+        fetchAdminProducts(token, { page: 1, limit: 100 }),
       ]);
 
-      setOrders(ordersRes.data || []);
-      setProducts(prodsRes || []);
+      const orderData = ordersRes.data || [];
+      const prodData = prodsRes.data || [];
+      setOrders(orderData);
+      setProducts(prodData);
+      setTotalOrders(ordersRes.total ?? orderData.length);
+      setTotalProducts(prodsRes.total ?? prodData.length);
     } catch (err: any) {
       if (err.status === 401 || err.status === 403) {
         localStorage.removeItem('neut_admin_token');
@@ -159,7 +166,7 @@ export default function AdminDashboardPage() {
             <span className="text-[11px] font-mono uppercase font-bold">Tổng Đơn Hàng</span>
             <Package size={16} className="text-black" />
           </div>
-          <div className="text-2xl font-black text-black tracking-tight">{orders.length}</div>
+          <div className="text-2xl font-black text-black tracking-tight">{totalOrders}</div>
           <p className="text-[10px] font-mono text-neutral-400 mt-1">Đơn phát sinh toàn thời gian</p>
         </div>
 
@@ -181,7 +188,7 @@ export default function AdminDashboardPage() {
             <span className="text-[11px] font-mono uppercase font-bold">Sản Phẩm Trong Kho</span>
             <Boxes size={16} className="text-black" />
           </div>
-          <div className="text-2xl font-black text-black tracking-tight">{products.length}</div>
+          <div className="text-2xl font-black text-black tracking-tight">{totalProducts}</div>
           <p className="text-[10px] font-mono text-neutral-400 mt-1">
             {lowStockItems.length} biến thể sắp hết
           </p>
@@ -205,7 +212,7 @@ export default function AdminDashboardPage() {
           </div>
           <h3 className="text-lg font-black uppercase tracking-tight mb-2">QUẢN LÝ ĐƠN HÀNG &rarr;</h3>
           <p className="text-xs text-neutral-300 font-mono">
-            Xem danh sách {orders.length} đơn hàng, đổi trạng thái CONFIRMED, SHIPPING, COMPLETED,
+            Xem danh sách {totalOrders} đơn hàng, đổi trạng thái CONFIRMED, SHIPPING, COMPLETED,
             hoặc hủy hoàn kho.
           </p>
         </Link>
@@ -225,7 +232,7 @@ export default function AdminDashboardPage() {
           </div>
           <h3 className="text-lg font-black uppercase tracking-tight mb-2">QUẢN LÝ KHO SẢN PHẨM &rarr;</h3>
           <p className="text-xs text-neutral-600 font-mono">
-            Quản lý {products.length} sản phẩm, cập nhật tồn kho từng size, thêm mới ảnh MinIO S3,
+            Quản lý {totalProducts} sản phẩm, cập nhật tồn kho từng size, thêm mới ảnh MinIO S3,
             chỉnh sửa hoặc xóa.
           </p>
         </Link>
