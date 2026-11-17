@@ -9,6 +9,7 @@ interface AuthState {
   authModalTab: 'login' | 'register';
 
   setAuth: (user: User, token: string) => void;
+  setToken: (token: string) => void;
   logout: () => void;
   openAuthModal: (tab?: 'login' | 'register') => void;
   closeAuthModal: () => void;
@@ -23,7 +24,12 @@ export const useAuthStore = create<AuthState>()(
       authModalTab: 'login',
 
       setAuth: (user, token) => set({ user, token, isAuthModalOpen: false }),
-      logout: () => set({ user: null, token: null }),
+      setToken: (token) => set({ token }),
+      logout: () => {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+        fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+        set({ user: null, token: null });
+      },
       openAuthModal: (tab = 'login') => set({ isAuthModalOpen: true, authModalTab: tab }),
       closeAuthModal: () => set({ isAuthModalOpen: false }),
     }),

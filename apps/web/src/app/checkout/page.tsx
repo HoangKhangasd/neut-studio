@@ -20,6 +20,8 @@ import { useCartStore } from '../../stores/cart-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { formatVND } from '../../lib/utils';
 import { createOrder, validateCoupon } from '../../lib/api';
+import { fetchAddresses } from '../../lib/account-api';
+import { UserAddress } from '../../lib/types';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -51,7 +53,29 @@ export default function CheckoutPage() {
     }
   }, [user]);
 
-  const paymentMethod = 'COD';
+  const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PAYOS'>('COD');
+
+  useEffect(() => {
+    if (!token) return;
+    fetchAddresses(token)
+      .then((list) => {
+        setSavedAddresses(list);
+        const def = list.find((a) => a.isDefault) || list[0];
+        if (def) {
+          setFormData((prev) => ({
+            ...prev,
+            customerName: prev.customerName || def.recipientName,
+            customerPhone: prev.customerPhone || def.phoneNumber,
+            province: prev.province || def.province,
+            district: prev.district || def.district,
+            ward: prev.ward || def.ward,
+            street: prev.street || def.streetAddress,
+          }));
+        }
+      })
+      .catch(() => {});
+  }, [token]);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
   const [discountAmount, setDiscountAmount] = useState(0);
@@ -113,7 +137,7 @@ export default function CheckoutPage() {
           ward: formData.ward.trim(),
           street: formData.street.trim(),
         },
-        paymentMethod: 'COD',
+        paymentMethod,
         items: items.map((i) => ({
           variantId: i.variantId,
           quantity: i.quantity,
@@ -302,21 +326,92 @@ export default function CheckoutPage() {
                 <span className="text-xs font-mono text-neutral-400 font-normal">BƯỚC 3/3</span>
               </h2>
 
-              <div className="p-4 border-2 border-black bg-neutral-50 flex items-start gap-3.5">
-                <Truck className="w-5 h-5 text-black shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-black">
-                      Thanh toán khi nhận hàng (COD)
-                    </span>
-                    <span className="px-1.5 py-0.5 bg-black text-white text-[9px] font-mono uppercase font-bold">
-                      MẶC ĐỊNH
-                    </span>
+              {savedAddresses.length > 0 && (
+                <div className="mb-4 p-3 bg-neutral-50 border border-neutral-300 text-xs font-mono">
+                  <span className="block font-bold uppercase text-[10px] text-neutral-500 mb-2">
+                    Chọn nhanh từ sổ địa chỉ đã lưu:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {savedAddresses.map((addr) => (
+                      <button
+                        type="button"
+                        key={addr.id}
+                        onClick={() =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            customerName: addr.recipientName,
+                            customerPhone: addr.phoneNumber,
+                            province: addr.province,
+                            district: addr.district,
+                            ward: addr.ward,
+                            street: addr.streetAddress,
+                          }))
+                        }
+                        className="px-2.5 py-1 border border-black bg-white hover:bg-black hover:text-white transition-colors cursor-pointer"
+                      >
+                        {addr.recipientName} — {addr.district}
+                      </button>
+                    ))}
                   </div>
-                  <p className="text-[11px] font-mono text-neutral-600 mt-1 leading-relaxed">
-                    Nhận hàng, kiểm tra tem mác và sản phẩm trước khi thanh toán tiền mặt trực tiếp cho nhân viên vận chuyển.
-                  </p>
                 </div>
+              )}
+
+              <div className="space-y-3">
+                <label
+                  className={`p-4 border-2 flex items-start gap-3.5 cursor-pointer transition-colors ${
+                    paymentMethod === 'COD' ? 'border-black bg-neutral-50' : 'border-neutral-300 bg-white'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    checked={paymentMethod === 'COD'}
+                    onChange={() => setPaymentMethod('COD')}
+                    className="mt-1 accent-black"
+                  />
+                  <Truck className="w-5 h-5 text-black shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black uppercase tracking-wider text-black">
+                        Thanh toán khi nhận hàng (COD)
+                      </span>
+                      <span className="px-1.5 py-0.5 bg-black text-white text-[9px] font-mono uppercase font-bold">
+                        MẶC ĐỊNH
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-mono text-neutral-600 mt-1 leading-relaxed">
+                      Nhận hàng, kiểm tra tem mác và sản phẩm trước khi thanh toán tiền mặt trực tiếp cho nhân viên vận chuyển.
+                    </p>
+                  </div>
+                </label>
+
+                <label
+                  className={`p-4 border-2 flex items-start gap-3.5 cursor-pointer transition-colors ${
+                    paymentMethod === 'PAYOS' ? 'border-black bg-neutral-50' : 'border-neutral-300 bg-white'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    checked={paymentMethod === 'PAYOS'}
+                    onChange={() => setPaymentMethod('PAYOS')}
+                    className="mt-1 accent-black"
+                  />
+                  <QrCode className="w-5 h-5 text-black shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black uppercase tracking-wider text-black">
+                        Chuyển khoản nhanh VietQR (PayOS)
+                      </span>
+                      <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-mono uppercase font-bold">
+                        TỰ ĐỘNG 24/7
+                      </span>
+                    </div>
+                    <p className="text-[11px] font-mono text-neutral-600 mt-1 leading-relaxed">
+                      Quét mã QR ngân hàng — đơn giữ tồn kho trong 15 phút và tự động xác nhận qua Webhook HMAC-SHA256.
+                    </p>
+                  </div>
+                </label>
               </div>
             </div>
 

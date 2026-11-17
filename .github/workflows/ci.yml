@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run API unit tests
+        env:
+          NODE_ENV: test
+          REDIS_DISABLED: 'true'
+        run: pnpm --filter @neut/api test
+
+      - name: Run Web unit tests
+        run: node --test apps/web/src/components/admin/pagination.test.mjs apps/web/src/stores/cart-guard.test.mjs
+
+      - name: Type-check Web
+        run: pnpm --filter @neut/web exec tsc --noEmit
+
+      - name: Build API & Web
+        run: pnpm --filter @neut/api build && pnpm --filter @neut/web build

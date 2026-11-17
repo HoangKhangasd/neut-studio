@@ -154,6 +154,7 @@ export async function loginUser(credentials: { email: string; password: string }
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify(credentials),
   });
   if (!res.ok) {
@@ -161,6 +162,67 @@ export async function loginUser(credentials: { email: string; password: string }
     throw new Error(err.message || 'Đăng nhập không thành công');
   }
   return res.json();
+}
+
+export async function refreshAccessToken(): Promise<{ user: any; accessToken: string } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (typeof window !== 'undefined' && data?.accessToken) {
+      if (data.user?.role === 'ADMIN' && localStorage.getItem('neut_admin_token')) {
+        localStorage.setItem('neut_admin_token', data.accessToken);
+      }
+      const rawCustomer = localStorage.getItem('neut_customer_auth');
+      if (rawCustomer) {
+        try {
+          const parsed = JSON.parse(rawCustomer);
+          if (parsed?.state?.token) {
+            parsed.state.token = data.accessToken;
+            if (data.user) parsed.state.user = data.user;
+            localStorage.setItem('neut_customer_auth', JSON.stringify(parsed));
+          }
+        } catch {}
+      }
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function authFetch(
+  input: string,
+  token: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+
+  let res = await fetch(input, {
+    ...init,
+    headers,
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed?.accessToken) {
+      headers.set('Authorization', `Bearer ${refreshed.accessToken}`);
+      res = await fetch(input, {
+        ...init,
+        headers,
+        credentials: 'include',
+        cache: 'no-store',
+      });
+    }
+  }
+  return res;
 }
 
 export async function fetchAdminOrders(
@@ -174,10 +236,7 @@ export async function fetchAdminOrders(
   if (params?.search?.trim()) query.set('search', params.search.trim());
 
   const url = `${API_BASE}/orders/admin/all${query.toString() ? `?${query.toString()}` : ''}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  });
+  const res = await authFetch(url, token);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const error = new Error(err.message || 'Không thể tải danh sách đơn hàng') as any;
@@ -337,6 +396,7 @@ export async function registerUser(data: {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
     body: JSON.stringify(data),
   });
   if (!res.ok) {
@@ -347,10 +407,7 @@ export async function registerUser(data: {
 }
 
 export async function fetchMyOrders(token: string): Promise<CustomerOrder[]> {
-  const res = await fetch(`${API_BASE}/orders/my-orders`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  });
+  const res = await authFetch(`${API_BASE}/orders/my-orders`, token);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || 'Không thể tải lịch sử đơn hàng');
@@ -368,10 +425,7 @@ export async function fetchAdminProducts(
   if (params?.search?.trim()) query.set('search', params.search.trim());
 
   const url = `${API_BASE}/products/admin/all${query.toString() ? `?${query.toString()}` : ''}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  });
+  const res = await authFetch(url, token);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     const error = new Error(err.message || 'Không thể tải danh sách sản phẩm') as any;

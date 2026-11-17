@@ -6,6 +6,8 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Trash2, Plus, Minus, ArrowRight, ArrowLeft, ShoppingBag, Truck, ShieldCheck } from 'lucide-react';
 import { useCartStore } from '../../stores/cart-store';
+import { useAuthStore } from '../../stores/auth-store';
+import { validateCartItems, saveServerCart } from '../../lib/account-api';
 import { formatVND } from '../../lib/utils';
 
 const FREESHIP_THRESHOLD = 1000000;
@@ -14,11 +16,27 @@ const STANDARD_SHIPPING_FEE = 30000;
 export default function CartPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const { items, updateQuantity, removeItem, getSubtotal } = useCartStore();
+  const [syncWarnings, setSyncWarnings] = useState<string[]>([]);
+  const { items, setItems, updateQuantity, removeItem, getSubtotal } = useCartStore();
+  const { token } = useAuthStore();
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!mounted || items.length === 0) return;
+    const payload = items.map((i) => ({ variantId: i.variantId, quantity: i.quantity }));
+    const syncCall = token ? saveServerCart(token, payload) : validateCartItems(payload);
+    syncCall
+      .then((res) => {
+        setItems(res.items);
+        setSyncWarnings(res.warnings || []);
+      })
+      .catch(() => {});
+    // Validate live stock & price once when cart opens
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, token]);
 
   if (!mounted) {
     return (
@@ -76,6 +94,15 @@ export default function CartPage() {
             GIỎ HÀNG CỦA BẠN ({items.length} SẢN PHẨM)
           </h1>
         </div>
+
+        {/* Live Sync Warnings */}
+        {syncWarnings.length > 0 && (
+          <div className="mb-6 p-4 bg-amber-50 border-2 border-amber-500 text-amber-900 text-xs font-mono space-y-1">
+            {syncWarnings.map((w, idx) => (
+              <p key={idx}>• {w}</p>
+            ))}
+          </div>
+        )}
 
         {/* Freeship Progress Bar */}
         <div className="mb-8 p-4 bg-white border-2 border-black shadow-[3px_3px_0px_0px_rgba(0,0,0,1)]">

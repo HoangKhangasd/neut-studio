@@ -25,6 +25,11 @@ import { useAuthStore } from '../../stores/auth-store';
 import { fetchMyOrders } from '../../lib/api';
 import { CustomerOrder } from '../../lib/types';
 import { formatVND } from '../../lib/utils';
+import {
+  AccountAddressesTab,
+  AccountWishlistTab,
+  ChangePasswordCard,
+} from '../../components/store/AccountExtrasTabs';
 
 export default function AccountPage() {
   const router = useRouter();
@@ -35,7 +40,7 @@ export default function AccountPage() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [errorOrders, setErrorOrders] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'orders' | 'profile'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'addresses' | 'wishlist' | 'profile'>('orders');
 
   useEffect(() => {
     setMounted(true);
@@ -198,27 +203,25 @@ export default function AccountPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b-2 border-black mb-6">
-        <button
-          onClick={() => setActiveTab('orders')}
-          className={`px-6 py-3 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer ${
-            activeTab === 'orders'
-              ? 'bg-black text-white'
-              : 'bg-white text-neutral-600 hover:bg-neutral-100'
-          }`}
-        >
-          Lịch Sử Đơn Hàng ({orders.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={`px-6 py-3 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer ${
-            activeTab === 'profile'
-              ? 'bg-black text-white'
-              : 'bg-white text-neutral-600 hover:bg-neutral-100'
-          }`}
-        >
-          Thông Tin Cá Nhân
-        </button>
+      <div className="flex flex-wrap border-b-2 border-black mb-6">
+        {[
+          { key: 'orders' as const, label: `Lịch Sử Đơn Hàng (${orders.length})` },
+          { key: 'addresses' as const, label: 'Sổ Địa Chỉ' },
+          { key: 'wishlist' as const, label: 'Yêu Thích' },
+          { key: 'profile' as const, label: 'Thông Tin & Mật Khẩu' },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-5 py-3 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer ${
+              activeTab === tab.key
+                ? 'bg-black text-white'
+                : 'bg-white text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Tab: Orders */}
@@ -337,6 +340,12 @@ export default function AccountPage() {
         </div>
       )}
 
+      {/* Tab: Addresses */}
+      {activeTab === 'addresses' && <AccountAddressesTab token={token} />}
+
+      {/* Tab: Wishlist */}
+      {activeTab === 'wishlist' && <AccountWishlistTab token={token} />}
+
       {/* Tab: Profile */}
       {activeTab === 'profile' && (
         <div className="max-w-2xl bg-white border-2 border-black p-6 sm:p-8 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
@@ -377,6 +386,8 @@ export default function AccountPage() {
               </div>
             </div>
           </div>
+
+          <ChangePasswordCard token={token} />
 
           <div className="mt-8 pt-6 border-t border-neutral-200 flex justify-between items-center">
             <button

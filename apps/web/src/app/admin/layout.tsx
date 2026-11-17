@@ -7,6 +7,10 @@ import {
   LayoutDashboard,
   Package,
   Boxes,
+  Tag,
+  FolderTree,
+  Users,
+  MessageSquare,
   LogOut,
   ShieldCheck,
   ArrowUpRight,
@@ -69,6 +73,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   const handleLogout = () => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+    fetch(`${apiBase}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
     setToken(null);
     setAdminUser(null);
     localStorage.removeItem('neut_admin_token');
@@ -162,6 +168,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
     { href: '/admin/orders', label: 'Quản Lý Đơn Hàng', icon: Package },
     { href: '/admin/products', label: 'Quản Lý Kho Sản Phẩm', icon: Boxes },
+    { href: '/admin/coupons', label: 'Mã Giảm Giá', icon: Tag },
+    { href: '/admin/categories', label: 'Danh Mục', icon: FolderTree },
+    { href: '/admin/users', label: 'Người Dùng', icon: Users },
+    { href: '/admin/reviews', label: 'Đánh Giá', icon: MessageSquare },
   ];
 
   return (

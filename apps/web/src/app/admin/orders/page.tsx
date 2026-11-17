@@ -15,6 +15,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { fetchAdminOrders, updateAdminOrderStatus } from '../../../lib/api';
+import { sandboxConfirmPayment } from '../../../lib/admin-api';
 import { formatVND } from '../../../lib/utils';
 import {
   AdminPagination,
@@ -399,7 +400,29 @@ export default function AdminOrdersPage() {
                 </div>
                 <div>
                   <span className="text-neutral-500 block text-[10px] uppercase">Thanh Toán:</span>
-                  <p className="font-bold text-black">{selectedOrderForDetail.paymentMethod}</p>
+                  <p className="font-bold text-black">
+                    {selectedOrderForDetail.paymentMethod} ({selectedOrderForDetail.paymentStatus})
+                  </p>
+                  {selectedOrderForDetail.paymentMethod === 'PAYOS' &&
+                    selectedOrderForDetail.paymentStatus === 'PENDING' &&
+                    selectedOrderForDetail.orderStatus === 'PENDING' && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!token) return;
+                          try {
+                            await sandboxConfirmPayment(token, selectedOrderForDetail.orderCode);
+                            setSelectedOrderForDetail(null);
+                            loadOrders();
+                          } catch (err: any) {
+                            alert(err.message || 'Xác nhận PayOS thất bại');
+                          }
+                        }}
+                        className="mt-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold uppercase cursor-pointer"
+                      >
+                        Giả lập Webhook PayOS (PAID)
+                      </button>
+                    )}
                   <span className="text-neutral-500 block text-[10px] uppercase mt-2">
                     Trạng Thái Đơn:
                   </span>

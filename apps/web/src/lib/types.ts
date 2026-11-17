@@ -156,8 +156,77 @@ export interface CustomerOrder {
   paymentMethod: string;
   paymentStatus: string;
   orderStatus: string;
+  expiresAt?: string | null;
   createdAt: string;
   items: OrderItemSnapshot[];
+}
+
+export interface UserAddress {
+  id: string;
+  recipientName: string;
+  phoneNumber: string;
+  province: string;
+  district: string;
+  ward: string;
+  streetAddress: string;
+  isDefault: boolean;
+  createdAt: string;
+}
+
+export interface WishlistItem {
+  id: string;
+  productId: string;
+  title: string;
+  slug: string;
+  minPrice: number;
+  coverImage: string | null;
+  inStock: boolean;
+  createdAt: string;
+}
+
+export interface AdminCoupon {
+  id: string;
+  code: string;
+  discountType: 'PERCENT' | 'FIXED';
+  discountValue: number;
+  maxDiscountAmount?: number | null;
+  minOrderAmount: number;
+  usageLimit: number;
+  usedCount: number;
+  startDate: string;
+  endDate: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface AdminReview {
+  id: string;
+  productId: string;
+  productTitle?: string | null;
+  productSlug?: string | null;
+  customerName: string;
+  rating: number;
+  fitScore: number;
+  purchasedSize?: string | null;
+  comment: string;
+  isVerifiedPurchase: boolean;
+  createdAt: string;
+}
+
+export interface AdminStats {
+  totalRevenue: number;
+  totalOrders: number;
+  cancelledOrders: number;
+  pendingOrders: number;
+  totalProducts: number;
+  lowStockItems: Array<{
+    productId: string;
+    productTitle: string;
+    variantId: string;
+    size: string;
+    colorName: string;
+    stockQuantity: number;
+  }>;
 }
 
 export interface PaginatedResponse<T> {

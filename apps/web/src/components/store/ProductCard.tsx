@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react';
 import { Product } from '../../lib/types';
 import { formatVND } from '../../lib/utils';
 import { useCartStore } from '../../stores/cart-store';
+import { useAuthStore } from '../../stores/auth-store';
+import { addToWishlist, removeFromWishlist } from '../../lib/account-api';
 
 interface ProductCardProps {
   product: Product;
@@ -16,6 +18,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const { addItem } = useCartStore();
+  const { token } = useAuthStore();
 
   useEffect(() => {
     try {
@@ -42,9 +45,11 @@ export function ProductCard({ product }: ProductCardProps) {
       if (ids.includes(product.id)) {
         ids = ids.filter((id) => id !== product.id);
         setIsWishlisted(false);
+        if (token) removeFromWishlist(token, product.id).catch(() => {});
       } else {
         ids.push(product.id);
         setIsWishlisted(true);
+        if (token) addToWishlist(token, product.id).catch(() => {});
       }
       localStorage.setItem('neut_wishlist', JSON.stringify(ids));
     } catch {
@@ -73,7 +78,7 @@ export function ProductCard({ product }: ProductCardProps) {
         imageUrl: primaryImage,
         colorName: matchingVariant.colorName,
         size: matchingVariant.size,
-        price: matchingVariant.salePrice || matchingVariant.price,
+        price: matchingVariant.salePrice ?? matchingVariant.price,
         maxStock: matchingVariant.stockQuantity,
       });
     }

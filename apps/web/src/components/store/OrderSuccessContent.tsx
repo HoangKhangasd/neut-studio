@@ -236,8 +236,16 @@ export function OrderSuccessContent() {
             <QrCode className="w-28 h-28 text-black" />
           </div>
           <div className="space-y-2 text-xs font-mono">
-            <span className="px-2 py-0.5 bg-emerald-500 text-black font-black uppercase tracking-wider text-[10px]">
-              VIETQR 24/7 TỰ ĐỘNG
+            <span
+              className={`px-2 py-0.5 font-black uppercase tracking-wider text-[10px] ${
+                order.paymentStatus === 'PAID'
+                  ? 'bg-emerald-500 text-black'
+                  : 'bg-amber-400 text-black'
+              }`}
+            >
+              {order.paymentStatus === 'PAID'
+                ? 'ĐÃ THANH TOÁN THÀNH CÔNG'
+                : 'VIETQR 24/7 • GIỮ TỒN KHO 15 PHÚT'}
             </span>
             <h4 className="text-base font-black uppercase text-white tracking-wide">
               THÔNG TIN CHUYỂN KHOẢN NGÂN HÀNG
@@ -254,8 +262,14 @@ export function OrderSuccessContent() {
             <p className="text-neutral-300">
               Nội dung CK: <strong className="text-emerald-400">{order.orderCode}</strong>
             </p>
+            {order.expiresAt && order.paymentStatus !== 'PAID' && (
+              <p className="text-amber-300">
+                Hạn thanh toán:{' '}
+                <strong>{new Date(order.expiresAt).toLocaleTimeString('vi-VN')}</strong> (tự hủy hoàn kho sau 15 phút nếu chưa thanh toán)
+              </p>
+            )}
             <p className="text-[11px] text-neutral-400 pt-1">
-              * Hệ thống sẽ tự động gạch nợ và đổi trạng thái sang ĐÃ THANH TOÁN ngay khi nhận được tín hiệu Webhook IPN.
+              * Hệ thống sẽ tự động gạch nợ và đổi trạng thái sang ĐÃ THANH TOÁN ngay khi nhận được tín hiệu Webhook HMAC-SHA256.
             </p>
           </div>
         </div>
