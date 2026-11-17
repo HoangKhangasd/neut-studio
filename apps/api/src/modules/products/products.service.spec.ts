@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { ProductsService } from './products.service.js';
 import {
@@ -6,6 +7,7 @@ import {
   productVariants,
   productImages,
   categories,
+  productReviews,
 } from '../../database/schema/index.js';
 
 function createMockDb(opts: {
@@ -194,5 +196,159 @@ describe('ProductsService.getAdminProducts', () => {
     expect(searchQuery.sql).toContain('"title"');
     expect(searchQuery.sql).toContain('"slug"');
     expect(searchQuery.params).toEqual(['%hoodie%', '%hoodie%']);
+  });
+});
+
+describe('ProductsService public visibility, pricing, fit-finder & reviews hardening', () => {
+  it('returns empty list when getProducts receives an unknown categorySlug', async () => {
+    const selectSpy = vi.fn();
+    const db = {
+      query: { categories: { findFirst: vi.fn().mockResolvedValue(null) } },
+      select: selectSpy,
+    };
+    const service = new ProductsService(db);
+
+    const res = await service.getProducts({ categorySlug: 'non-existent', page: 1, limit: 10 });
+
+    expect(res).toEqual({ data: [], total: 0, page: 1, totalPages: 0 });
+    expect(selectSpy).not.toHaveBeenCalled();
+  });
+
+  it('filters isPublished=true in getProductBySlug and isActive=true in getCollectionBySlug', async () => {
+    const dialect = new PgDialect();
+    const prodFindFirst = vi.fn().mockResolvedValue(null);
+    const colFindFirst = vi.fn().mockResolvedValue(null);
+    const db = {
+      query: {
+        products: { findFirst: prodFindFirst },
+        collections: { findFirst: colFindFirst },
+      },
+    };
+    const service = new ProductsService(db);
+
+    await expect(service.getProductBySlug('draft-tee')).rejects.toThrow(NotFoundException);
+    const prodSql = dialect.sqlToQuery(prodFindFirst.mock.calls[0][0].where).sql;
+    expect(prodSql).toContain('"is_published" = $');
+
+    await expect(service.getCollectionBySlug('hidden-col')).rejects.toThrow(NotFoundException);
+    const colSql = dialect.sqlToQuery(colFindFirst.mock.calls[0][0].where).sql;
+    expect(colSql).toContain('"is_active" = $');
+  });
+
+  it('sets isPublished=false when soft-deleting a product in deleteProductAdmin', async () => {
+    const setPayloads: any[] = [];
+    const db = {
+      update: vi.fn(() => ({
+        set: vi.fn((vals: any) => {
+          setPayloads.push(vals);
+          return {
+            where: vi.fn(() => ({
+              returning: vi.fn().mockResolvedValue([{ id: 'p-1' }]),
+            })),
+          };
+        }),
+      })),
+    };
+    const service = new ProductsService(db);
+
+    await service.deleteProductAdmin('p-1');
+    expect(setPayloads[0].isPublished).toBe(false);
+    expect(setPayloads[0].deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('uses salePrice === 0 via nullish coalescing in getAdminProducts', async () => {
+    const { db } = createMockDb({
+      productRows: [{ id: 'p1', title: 'Free Promo', slug: 'free-promo', categoryId: null }],
+      variantRows: [{ id: 'v1', productId: 'p1', price: 350000, salePrice: 0, stockQuantity: 5 }],
+      imageRows: [],
+      totalCount: 1,
+    });
+    const service = new ProductsService(db);
+    const res = await service.getAdminProducts();
+    expect(res.data[0].basePrice).toBe(0);
+  });
+
+  it('guards calculateFit against zero/negative measurements and incorporates bodyType', () => {
+    const service = new ProductsService({});
+
+    expect(() =>
+      service.calculateFit({
+        heightCm: 0,
+        weightKg: 65,
+        bodyType: 'balanced',
+        fitPreference: 'comfortable',
+      }),
+    ).toThrow(BadRequestException);
+
+    // Same height/weight (170cm, 67kg -> BMI ~23.18): slim shifts down vs full shifts up
+    const slim = service.calculateFit({
+      heightCm: 170,
+      weightKg: 67,
+      bodyType: 'slim',
+      fitPreference: 'comfortable',
+    });
+    const full = service.calculateFit({
+      heightCm: 170,
+      weightKg: 67,
+      bodyType: 'full',
+      fitPreference: 'comfortable',
+    });
+    expect(slim.recommendedSize).not.toBe(full.recommendedSize);
+  });
+
+  it('rejects duplicate product reviews and uses DB user fullName & purchased variantSize', async () => {
+    // 1. Duplicate review rejected
+    const dupDb = {
+      query: {
+        products: { findFirst: vi.fn().mockResolvedValue({ id: 'p-1', slug: 'tee' }) },
+        productReviews: { findFirst: vi.fn().mockResolvedValue({ id: 'rev-existing' }) },
+      },
+    };
+    const dupService = new ProductsService(dupDb);
+    await expect(
+      dupService.createProductReview(
+        'tee',
+        { customerName: 'Spoofed', rating: 5, fitScore: 0, comment: 'Nice' },
+        'u-1',
+      ),
+    ).rejects.toThrow(ConflictException);
+
+    // 2. Uses DB fullName and purchased variantSize
+    const insertedValues: any[] = [];
+    const okDb = {
+      query: {
+        products: { findFirst: vi.fn().mockResolvedValue({ id: 'p-1', slug: 'tee' }) },
+        productReviews: { findFirst: vi.fn().mockResolvedValue(null) },
+        users: { findFirst: vi.fn().mockResolvedValue({ id: 'u-1', fullName: 'Real User Name' }) },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn((table: any) => {
+          if (table === productVariants) {
+            return { where: vi.fn().mockResolvedValue([{ id: 'v-1' }]) };
+          }
+          return {
+            innerJoin: vi.fn(() => ({
+              where: vi.fn(() => ({
+                limit: vi.fn().mockResolvedValue([{ orderId: 'o-1', variantSize: 'XL' }]),
+              })),
+            })),
+          };
+        }),
+      })),
+      insert: vi.fn((table: any) => ({
+        values: vi.fn((vals: any) => {
+          if (table === productReviews) insertedValues.push(vals);
+          return { returning: vi.fn().mockResolvedValue([{ id: 'rev-1', ...vals }]) };
+        }),
+      })),
+    };
+    const okService = new ProductsService(okDb);
+    await okService.createProductReview(
+      'tee',
+      { customerName: 'Fake Name', purchasedSize: 'S', rating: 5, fitScore: 0, comment: 'Great' },
+      'u-1',
+    );
+    expect(insertedValues[0].customerName).toBe('Real User Name');
+    expect(insertedValues[0].purchasedSize).toBe('XL');
   });
 });

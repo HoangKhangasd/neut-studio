@@ -1,4 +1,11 @@
-import { Injectable, NotFoundException, ForbiddenException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  ConflictException,
+  Inject,
+} from '@nestjs/common';
 import { eq, and, or, ilike, desc, asc, sql, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../../database/database.module.js';
 import {
@@ -11,6 +18,7 @@ import {
   productReviews,
   orders,
   orderItems,
+  users,
 } from '../../database/schema/index.js';
 import {
   ProductQueryDto,
@@ -60,7 +68,7 @@ export class ProductsService {
 
   async getCollectionBySlug(slug: string) {
     const col = await this.db.query.collections.findFirst({
-      where: eq(collections.slug, slug),
+      where: and(eq(collections.slug, slug), eq(collections.isActive, true)),
     });
     if (!col) throw new NotFoundException('Không tìm thấy bộ sưu tập');
     return col;
@@ -85,9 +93,10 @@ export class ProductsService {
       const cat = await this.db.query.categories.findFirst({
         where: eq(categories.slug, query.categorySlug),
       });
-      if (cat) {
-        conditions.push(eq(products.categoryId, cat.id));
+      if (!cat) {
+        return { data: [], total: 0, page, totalPages: 0 };
       }
+      conditions.push(eq(products.categoryId, cat.id));
     }
 
     // Sort order
@@ -145,7 +154,7 @@ export class ProductsService {
       }));
 
       // Min/Max price
-      const prices = prodVariants.map((v: any) => v.salePrice || v.price);
+      const prices = prodVariants.map((v: any) => v.salePrice ?? v.price);
       const minPrice = prices.length ? Math.min(...prices) : 0;
       const originalPrice = prodVariants.length ? prodVariants[0].price : 0;
 
@@ -176,7 +185,11 @@ export class ProductsService {
 
   async getProductBySlug(slug: string) {
     const prod = await this.db.query.products.findFirst({
-      where: and(eq(products.slug, slug), sql`${products.deletedAt} IS NULL`),
+      where: and(
+        eq(products.slug, slug),
+        eq(products.isPublished, true),
+        sql`${products.deletedAt} IS NULL`,
+      ),
     });
 
     if (!prod) throw new NotFoundException('Không tìm thấy sản phẩm');
@@ -210,7 +223,7 @@ export class ProductsService {
     );
 
     // Min and original price calculation
-    const prices = variants.map((v: any) => v.salePrice || v.price);
+    const prices = variants.map((v: any) => v.salePrice ?? v.price);
     const minPrice = prices.length ? Math.min(...prices) : 0;
     const originalPrice = variants.length ? variants[0].price : 0;
 
@@ -241,7 +254,13 @@ export class ProductsService {
   // ===================== SMART FIT FINDER =====================
   calculateFit(dto: FitFinderDto) {
     const { heightCm, weightKg, bodyType, fitPreference } = dto;
-    const bmi = weightKg / ((heightCm / 100) * (heightCm / 100));
+    if (!Number.isFinite(heightCm) || !Number.isFinite(weightKg) || heightCm <= 0 || weightKg <= 0) {
+      throw new BadRequestException('Chiều cao và cân nặng phải lớn hơn 0');
+    }
+
+    const rawBmi = weightKg / ((heightCm / 100) * (heightCm / 100));
+    const bodyAdjustment = bodyType === 'slim' ? -1.5 : bodyType === 'full' ? 1.5 : 0;
+    const bmi = rawBmi + bodyAdjustment;
 
     let recommendedSize = 'M';
     let confidence = 88;
@@ -341,6 +360,17 @@ export class ProductsService {
       throw new NotFoundException('Không tìm thấy sản phẩm để đánh giá');
     }
 
+    const existingReview = await this.db.query.productReviews.findFirst({
+      where: and(
+        eq(productReviews.productId, prod.id),
+        eq(productReviews.userId, userId),
+      ),
+    });
+
+    if (existingReview) {
+      throw new ConflictException('Bạn đã đánh giá sản phẩm này rồi');
+    }
+
     // Verify user has purchased this product and order status is COMPLETED
     const prodVariants = await this.db
       .select({ id: productVariants.id })
@@ -354,7 +384,7 @@ export class ProductsService {
     }
 
     const eligibleOrders = await this.db
-      .select({ orderId: orders.id })
+      .select({ orderId: orders.id, variantSize: orderItems.variantSize })
       .from(orders)
       .innerJoin(orderItems, eq(orders.id, orderItems.orderId))
       .where(
@@ -372,17 +402,21 @@ export class ProductsService {
       );
     }
 
+    const author = await this.db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
     const [review] = await this.db
       .insert(productReviews)
       .values({
         productId: prod.id,
         userId: userId,
-        customerName: dto.customerName?.trim() || 'Khách hàng Neut',
+        customerName: author?.fullName?.trim() || dto.customerName?.trim() || 'Khách hàng Neut',
         rating: Math.max(1, Math.min(5, dto.rating)),
         fitScore: dto.fitScore,
         userHeightCm: dto.userHeightCm || null,
         userWeightKg: dto.userWeightKg || null,
-        purchasedSize: dto.purchasedSize || null,
+        purchasedSize: eligibleOrders[0].variantSize || dto.purchasedSize || null,
         comment: dto.comment,
         images: dto.images || [],
         isVerifiedPurchase: true,
@@ -455,7 +489,7 @@ export class ProductsService {
     const data = prods.map((prod: any) => {
       const vars = variants.filter((v: any) => v.productId === prod.id);
       const imgs = images.filter((img: any) => img.productId === prod.id);
-      const prices = vars.map((v: any) => v.salePrice || v.price);
+      const prices = vars.map((v: any) => v.salePrice ?? v.price);
       const basePrice = prices.length ? Math.min(...prices) : 0;
 
       return {
@@ -584,7 +618,7 @@ export class ProductsService {
   async deleteProductAdmin(productId: string) {
     const [deleted] = await this.db
       .update(products)
-      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .set({ deletedAt: new Date(), isPublished: false, updatedAt: new Date() })
       .where(eq(products.id, productId))
       .returning();
 

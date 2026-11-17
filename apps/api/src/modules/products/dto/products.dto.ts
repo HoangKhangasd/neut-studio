@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsNumber, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 
@@ -62,11 +62,13 @@ export class FitFinderDto {
   @ApiProperty({ example: 172, description: 'Chiều cao (cm)' })
   @Type(() => Number)
   @IsNumber()
+  @Min(50)
   heightCm: number;
 
   @ApiProperty({ example: 65, description: 'Cân nặng (kg)' })
   @Type(() => Number)
   @IsNumber()
+  @Min(20)
   weightKg: number;
 
   @ApiProperty({ example: 'balanced', enum: ['slim', 'balanced', 'full'] })
