@@ -7,6 +7,7 @@ import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
+import { RateLimit, RateLimitGuard } from '../redis/rate-limit.guard.js';
 
 @ApiTags('Orders & Checkout')
 @Controller('orders')
@@ -14,7 +15,8 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Post()
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(RateLimitGuard, OptionalJwtAuthGuard)
+  @RateLimit(10, 60)
   @ApiOperation({ summary: 'Tạo đơn hàng mới (Trừ kho nguyên tử chống overselling)' })
   async createOrder(
     @Body() dto: CreateOrderDto,
@@ -32,7 +34,8 @@ export class OrdersController {
   }
 
   @Get('track/:orderCode')
-  @UseGuards(OptionalJwtAuthGuard)
+  @UseGuards(RateLimitGuard, OptionalJwtAuthGuard)
+  @RateLimit(15, 60)
   @ApiOperation({ summary: 'Tra cứu hành trình đơn hàng theo mã đơn và SĐT khách hàng' })
   async trackOrder(
     @Param('orderCode') orderCode: string,
@@ -40,6 +43,15 @@ export class OrdersController {
     @CurrentUser() user?: { id: string; role: string } | null,
   ) {
     return this.ordersService.trackOrder(orderCode, phone, user ?? undefined);
+  }
+
+  @Get('admin/stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin lấy thống kê tổng quan doanh thu, đơn hàng và cảnh báo tồn kho thấp' })
+  async getAdminStats() {
+    return this.ordersService.getAdminStats();
   }
 
   @Get('admin/all')

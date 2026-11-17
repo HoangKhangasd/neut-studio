@@ -732,4 +732,132 @@ export class ProductsService {
       return newProd;
     });
   }
+
+  // ===================== ADMIN CATEGORIES & REVIEWS =====================
+  async getAdminCategories() {
+    return this.db.select().from(categories).orderBy(asc(categories.sortOrder), asc(categories.name));
+  }
+
+  async createCategoryAdmin(dto: {
+    name: string;
+    slug?: string;
+    description?: string;
+    sortOrder?: number;
+    isActive?: boolean;
+  }) {
+    if (!dto.name?.trim()) {
+      throw new BadRequestException('Vui lòng nhập tên danh mục');
+    }
+    const baseSlug =
+      dto.slug?.trim().toLowerCase() ||
+      dto.name
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+
+    const existing = await this.db.query.categories.findFirst({
+      where: eq(categories.slug, baseSlug),
+    });
+    if (existing) {
+      throw new ConflictException(`Danh mục với slug '${baseSlug}' đã tồn tại`);
+    }
+
+    const [created] = await this.db
+      .insert(categories)
+      .values({
+        name: dto.name.trim(),
+        slug: baseSlug,
+        description: dto.description?.trim() || null,
+        sortOrder: Number(dto.sortOrder) || 0,
+        isActive: dto.isActive ?? true,
+      })
+      .returning();
+    return created;
+  }
+
+  async updateCategoryAdmin(
+    id: string,
+    dto: { name?: string; description?: string; sortOrder?: number; isActive?: boolean },
+  ) {
+    const updateData: any = {};
+    if (dto.name !== undefined) updateData.name = dto.name.trim();
+    if (dto.description !== undefined) updateData.description = dto.description.trim();
+    if (dto.sortOrder !== undefined) updateData.sortOrder = Number(dto.sortOrder) || 0;
+    if (dto.isActive !== undefined) updateData.isActive = dto.isActive;
+
+    const [updated] = await this.db
+      .update(categories)
+      .set(updateData)
+      .where(eq(categories.id, id))
+      .returning();
+
+    if (!updated) throw new NotFoundException('Không tìm thấy danh mục');
+    return updated;
+  }
+
+  async deleteCategoryAdmin(id: string) {
+    const [deleted] = await this.db
+      .delete(categories)
+      .where(eq(categories.id, id))
+      .returning({ id: categories.id });
+    if (!deleted) throw new NotFoundException('Không tìm thấy danh mục để xóa');
+    return { success: true, id };
+  }
+
+  async getAdminReviews(query?: AdminProductQueryDto) {
+    const page = Math.max(1, Math.floor(Number(query?.page)) || 1);
+    const limit = Math.max(1, Math.min(100, Math.floor(Number(query?.limit)) || 10));
+    const offset = (page - 1) * limit;
+
+    const whereClause = query?.search?.trim()
+      ? or(
+          ilike(productReviews.customerName, `%${query.search.trim()}%`),
+          ilike(productReviews.comment, `%${query.search.trim()}%`),
+        )
+      : undefined;
+
+    const [{ count }] = await this.db
+      .select({ count: sql`count(*)` })
+      .from(productReviews)
+      .where(whereClause);
+
+    const total = Number(count);
+    const totalPages = Math.ceil(total / limit);
+
+    const rows = await this.db
+      .select({
+        id: productReviews.id,
+        productId: productReviews.productId,
+        productTitle: products.title,
+        productSlug: products.slug,
+        customerName: productReviews.customerName,
+        rating: productReviews.rating,
+        fitScore: productReviews.fitScore,
+        purchasedSize: productReviews.purchasedSize,
+        comment: productReviews.comment,
+        isVerifiedPurchase: productReviews.isVerifiedPurchase,
+        createdAt: productReviews.createdAt,
+      })
+      .from(productReviews)
+      .leftJoin(products, eq(productReviews.productId, products.id))
+      .where(whereClause)
+      .orderBy(desc(productReviews.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    return { data: rows, total, page, totalPages };
+  }
+
+  async deleteReviewAdmin(id: string) {
+    const [deleted] = await this.db
+      .delete(productReviews)
+      .where(eq(productReviews.id, id))
+      .returning({ id: productReviews.id });
+    if (!deleted) throw new NotFoundException('Không tìm thấy đánh giá để xóa');
+    return { success: true, id };
+  }
 }

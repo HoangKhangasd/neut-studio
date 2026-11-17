@@ -66,6 +66,65 @@ export class ProductsController {
     return this.productsService.deleteProductAdmin(id);
   }
 
+  @Get('categories/admin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin lấy tất cả danh mục (bao gồm đang ẩn)' })
+  async getAdminCategories() {
+    return this.productsService.getAdminCategories();
+  }
+
+  @Post('categories/admin')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin tạo danh mục mới' })
+  async createCategoryAdmin(
+    @Body() dto: { name: string; slug?: string; description?: string; sortOrder?: number; isActive?: boolean },
+  ) {
+    return this.productsService.createCategoryAdmin(dto);
+  }
+
+  @Patch('categories/admin/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin cập nhật danh mục' })
+  async updateCategoryAdmin(
+    @Param('id') id: string,
+    @Body() dto: { name?: string; description?: string; sortOrder?: number; isActive?: boolean },
+  ) {
+    return this.productsService.updateCategoryAdmin(id, dto);
+  }
+
+  @Delete('categories/admin/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin xóa danh mục' })
+  async deleteCategoryAdmin(@Param('id') id: string) {
+    return this.productsService.deleteCategoryAdmin(id);
+  }
+
+  @Get('products/admin/reviews')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin lấy danh sách đánh giá sản phẩm có phân trang' })
+  async getAdminReviews(@Query() query: AdminProductQueryDto) {
+    return this.productsService.getAdminReviews(query);
+  }
+
+  @Delete('products/admin/reviews/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin xóa đánh giá vi phạm' })
+  async deleteReviewAdmin(@Param('id') id: string) {
+    return this.productsService.deleteReviewAdmin(id);
+  }
+
   // ===================== PUBLIC ENDPOINTS =====================
 
   @Get('products/:slug/reviews')

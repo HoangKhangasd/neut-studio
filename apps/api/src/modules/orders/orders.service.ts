@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException, Inject, Optional } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { eq, sql, desc, and, or, isNull, lt, inArray } from 'drizzle-orm';
 import { DRIZZLE } from '../../database/database.module.js';
@@ -11,6 +11,7 @@ import {
   couponUsages,
 } from '../../database/schema/index.js';
 import { CreateOrderDto, AdminOrderQueryDto } from './dto/orders.dto.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 function maskPhone(phone: string): string {
   const clean = phone.trim();
@@ -28,7 +29,10 @@ function maskEmail(email: string): string {
 
 @Injectable()
 export class OrdersService {
-  constructor(@Inject(DRIZZLE) private readonly db: any) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: any,
+    @Optional() private readonly notifications?: NotificationsService,
+  ) {}
 
   async createOrder(dto: CreateOrderDto, userId?: string) {
     if (!dto.items || dto.items.length === 0) {
@@ -177,9 +181,13 @@ export class OrdersService {
       const totalAmount = Math.max(0, subtotal + shippingFee - discountAmount);
 
       // Validate payment method
-      if (dto.paymentMethod && dto.paymentMethod !== 'COD') {
-        throw new BadRequestException('Hiện tại hệ thống chỉ hỗ trợ phương thức thanh toán COD');
+      const paymentMethod = dto.paymentMethod || 'COD';
+      if (paymentMethod !== 'COD' && paymentMethod !== 'PAYOS') {
+        throw new BadRequestException('Hiện tại hệ thống hỗ trợ thanh toán COD hoặc chuyển khoản VietQR (PAYOS)');
       }
+
+      const expiresAt =
+        paymentMethod === 'PAYOS' ? new Date(Date.now() + 15 * 60 * 1000) : null;
 
       // Generate high-entropy order code with SAVEPOINT retry on rare unique collision
       const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -208,9 +216,10 @@ export class OrdersService {
                 shippingFee,
                 discountAmount,
                 totalAmount,
-                paymentMethod: 'COD',
+                paymentMethod,
                 paymentStatus: 'PENDING',
                 orderStatus: 'PENDING',
+                expiresAt,
               })
               .returning();
             return inserted;
@@ -244,6 +253,24 @@ export class OrdersService {
         ...newOrder,
         items: orderItemsToInsert,
       };
+    }).then(async (createdOrder: any) => {
+      if (createdOrder?.customerEmail) {
+        this.notifications
+          ?.sendOrderConfirmation({
+            to: createdOrder.customerEmail,
+            orderCode: createdOrder.orderCode,
+            customerName: createdOrder.customerName,
+            totalAmount: createdOrder.totalAmount,
+            paymentMethod: createdOrder.paymentMethod,
+          })
+          .catch(() => {});
+      }
+      if (createdOrder?.paymentMethod === 'PAYOS') {
+        this.notifications
+          ?.scheduleOrderExpiry(createdOrder.id, createdOrder.orderCode)
+          .catch(() => {});
+      }
+      return createdOrder;
     });
   }
 
@@ -459,5 +486,50 @@ export class OrdersService {
 
       return updated;
     });
+  }
+
+  async getAdminStats() {
+    const [orderAgg] = await this.db
+      .select({
+        totalOrders: sql<number>`count(*)`,
+        cancelledOrders: sql<number>`count(*) FILTER (WHERE ${orders.orderStatus} = 'CANCELLED')`,
+        pendingOrders: sql<number>`count(*) FILTER (WHERE ${orders.orderStatus} = 'PENDING')`,
+        totalRevenue: sql<number>`COALESCE(SUM(${orders.totalAmount}) FILTER (WHERE ${orders.orderStatus} <> 'CANCELLED'), 0)`,
+      })
+      .from(orders);
+
+    const [prodAgg] = await this.db
+      .select({ totalProducts: sql<number>`count(*)` })
+      .from(products)
+      .where(isNull(products.deletedAt));
+
+    const lowStockRows = await this.db
+      .select({
+        productId: products.id,
+        productTitle: products.title,
+        variantId: productVariants.id,
+        size: productVariants.size,
+        colorName: productVariants.colorName,
+        stockQuantity: productVariants.stockQuantity,
+      })
+      .from(productVariants)
+      .innerJoin(products, eq(productVariants.productId, products.id))
+      .where(
+        and(
+          isNull(products.deletedAt),
+          isNull(productVariants.deletedAt),
+          lt(productVariants.stockQuantity, 5),
+        ),
+      )
+      .orderBy(productVariants.stockQuantity);
+
+    return {
+      totalRevenue: Number(orderAgg?.totalRevenue || 0),
+      totalOrders: Number(orderAgg?.totalOrders || 0),
+      cancelledOrders: Number(orderAgg?.cancelledOrders || 0),
+      pendingOrders: Number(orderAgg?.pendingOrders || 0),
+      totalProducts: Number(prodAgg?.totalProducts || 0),
+      lowStockItems: lowStockRows,
+    };
   }
 }
