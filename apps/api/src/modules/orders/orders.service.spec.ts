@@ -90,6 +90,14 @@ describe('OrdersService.getAdminOrders', () => {
     expect(zero.limitSpy).toHaveBeenCalledWith(10);
     expect(zero.offsetSpy).toHaveBeenCalledWith(0);
     expect(zeroRes.page).toBe(1);
+
+    const fractional = createMockDb({ orderRows: [], totalCount: 0 });
+    const fractionalService = new OrdersService(fractional.db);
+    const fractionalRes = await fractionalService.getAdminOrders({ page: 2.9, limit: 5.7 });
+
+    expect(fractional.limitSpy).toHaveBeenCalledWith(5);
+    expect(fractional.offsetSpy).toHaveBeenCalledWith(5);
+    expect(fractionalRes.page).toBe(2);
   });
 
   it('returns accurate total and totalPages when page is out of range without querying orderItems', async () => {

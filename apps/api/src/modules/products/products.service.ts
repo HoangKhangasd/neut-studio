@@ -394,8 +394,8 @@ export class ProductsService {
 
   // ===================== ADMIN PRODUCT MANAGEMENT =====================
   async getAdminProducts(query?: AdminProductQueryDto) {
-    const page = Math.max(1, Number(query?.page) || 1);
-    const limit = Math.max(1, Math.min(100, Number(query?.limit) || 10));
+    const page = Math.max(1, Math.floor(Number(query?.page)) || 1);
+    const limit = Math.max(1, Math.min(100, Math.floor(Number(query?.limit)) || 10));
     const offset = (page - 1) * limit;
 
     const conditions: any[] = [sql`${products.deletedAt} IS NULL`];
