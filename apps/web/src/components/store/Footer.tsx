@@ -1,8 +1,14 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Phone, Mail, Clock, ShieldCheck, RefreshCw, Truck, ArrowUpRight } from 'lucide-react';
 
 export function Footer() {
+  const pathname = usePathname();
+  if (pathname?.startsWith('/admin')) return null;
+
   return (
     <footer className="bg-black text-white border-t border-neutral-800">
       {/* 3 Pillars Value Proposition Bar */}
