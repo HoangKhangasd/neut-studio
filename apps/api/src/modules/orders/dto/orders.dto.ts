@@ -70,7 +70,7 @@ export class AdminOrderQueryDto {
   @IsNumber()
   page?: number;
 
-  @ApiProperty({ required: false, example: 20 })
+  @ApiProperty({ required: false, example: 10 })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

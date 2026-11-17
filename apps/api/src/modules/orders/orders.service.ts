@@ -233,7 +233,7 @@ export class OrdersService {
 
   async getAdminOrders(query?: AdminOrderQueryDto) {
     const page = Math.max(1, Number(query?.page) || 1);
-    const limit = Math.max(1, Math.min(100, Number(query?.limit) || 20));
+    const limit = Math.max(1, Math.min(100, Number(query?.limit) || 10));
     const offset = (page - 1) * limit;
 
     const conditions: any[] = [];
@@ -251,6 +251,14 @@ export class OrdersService {
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
+    const [{ count }] = await this.db
+      .select({ count: sql`count(*)` })
+      .from(orders)
+      .where(whereClause);
+
+    const total = Number(count);
+    const totalPages = Math.ceil(total / limit);
+
     const orderList = await this.db
       .select()
       .from(orders)
@@ -260,7 +268,7 @@ export class OrdersService {
       .offset(offset);
 
     if (orderList.length === 0) {
-      return { data: [], total: 0, page, totalPages: 0 };
+      return { data: [], total, page, totalPages };
     }
 
     const orderIds = orderList.map((o: any) => o.id);
@@ -278,18 +286,11 @@ export class OrdersService {
       };
     });
 
-    const [{ count }] = await this.db
-      .select({ count: sql`count(*)` })
-      .from(orders)
-      .where(whereClause);
-
-    const total = Number(count);
-
     return {
       data: formattedOrders,
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages,
     };
   }
 
