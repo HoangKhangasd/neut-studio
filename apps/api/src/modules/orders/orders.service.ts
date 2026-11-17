@@ -233,12 +233,17 @@ export class OrdersService {
         }
       }
 
-      // Insert Order Items
+      // Insert Order Items and capture DB-generated IDs
+      const insertedOrderItems: any[] = [];
       for (const itemRecord of orderItemsToInsert) {
-        await tx.insert(orderItems).values({
-          orderId: newOrder.id,
-          ...itemRecord,
-        });
+        const [insertedItem] = await tx
+          .insert(orderItems)
+          .values({
+            orderId: newOrder.id,
+            ...itemRecord,
+          })
+          .returning();
+        insertedOrderItems.push(insertedItem ?? { orderId: newOrder.id, ...itemRecord });
       }
 
       if (appliedCoupon && authenticatedUserId) {
@@ -251,7 +256,7 @@ export class OrdersService {
 
       return {
         ...newOrder,
-        items: orderItemsToInsert,
+        items: insertedOrderItems,
       };
     }).then(async (createdOrder: any) => {
       if (createdOrder?.customerEmail) {

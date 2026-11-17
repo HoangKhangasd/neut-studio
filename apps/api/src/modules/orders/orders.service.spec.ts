@@ -357,6 +357,9 @@ describe('OrdersService.createOrder hardening', () => {
             insertedOrders.push(vals);
             return { returning: vi.fn().mockResolvedValue([{ id: 'ord-new', ...vals }]) };
           }
+          if (table === orderItems) {
+            return { returning: vi.fn().mockResolvedValue([{ id: 'oi-new', ...vals }]) };
+          }
           return Promise.resolve([]);
         }),
       })),
@@ -367,6 +370,7 @@ describe('OrdersService.createOrder hardening', () => {
     expect(insertedOrders[0].userId).toBeNull();
     expect(insertedOrders[0].subtotal).toBe(0);
     expect(created.orderCode).toMatch(/^NEUT-\d{8}-[0-9A-F]{8}$/);
+    expect(created.items[0].id).toBe('oi-new');
   });
 
   it('rejects duplicate coupon usage by the same authenticated user', async () => {

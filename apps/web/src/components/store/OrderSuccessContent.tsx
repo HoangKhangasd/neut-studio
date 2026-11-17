@@ -299,9 +299,9 @@ export function OrderSuccessContent() {
             DANH SÁCH SẢN PHẨM ({order.items?.length || 0})
           </h3>
           <div className="space-y-2 max-h-60 overflow-y-auto">
-            {order.items?.map((item: any) => (
+            {order.items?.map((item: any, idx: number) => (
               <div
-                key={item.id}
+                key={item.id || `${item.variantId || item.variantSku}-${idx}`}
                 className="p-3 border border-neutral-200 bg-neutral-50 flex items-center justify-between text-xs"
               >
                 <div>
