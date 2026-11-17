@@ -45,19 +45,13 @@ export default async function HomePage() {
             >
               KHÁM PHÁ BỘ SƯU TẬP
             </Link>
-            <Link
-              href="/shop?collectionSlug=collab-all-blacks"
-              className="w-full sm:w-auto px-8 py-3.5 border-2 border-white text-white hover:bg-white hover:text-black text-xs font-black uppercase tracking-widest transition-all"
-            >
-              COLLECTION COLLAB DCxAB
-            </Link>
           </div>
         </div>
       </section>
 
       {/* 2. BENTO CATEGORY GRID */}
       <section className="py-12 px-4 sm:px-6 max-w-7xl mx-auto w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             {
               title: 'TOPS // ÁO THUN',
@@ -77,12 +71,6 @@ export default async function HomePage() {
               href: '/shop?categorySlug=bags',
               image: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&auto=format&fit=crop&q=80',
             },
-            {
-              title: 'COLLAB // DC x AB',
-              subtitle: 'Special Battle Overprint',
-              href: '/shop?collectionSlug=collab-all-blacks',
-              image: 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=800&auto=format&fit=crop&q=80',
-            },
           ].map((cat) => (
             <Link
               key={cat.title}
@@ -94,7 +82,7 @@ export default async function HomePage() {
                 alt={cat.title}
                 fill
                 className="object-cover object-center grayscale contrast-125 group-hover:scale-105 group-hover:grayscale-0 transition-all duration-500"
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                sizes="(max-width: 640px) 100vw, 33vw"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
               <div className="absolute bottom-0 left-0 right-0 p-5 text-white flex items-end justify-between">

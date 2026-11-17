@@ -73,10 +73,7 @@ export function HeaderMegaMenu() {
             </div>
           </div>
 
-          <Link href="/shop?collectionSlug=collab-all-blacks" className="text-red-600 hover:text-red-700 transition-colors">
-            Collaborations
-          </Link>
-          <Link href="/track-order" className="hover:text-neutral-500 transition-colors text-xs font-mono">
+          <Link href="/track-order" className="hover:text-neutral-500 transition-colors">
             Tra cứu đơn hàng
           </Link>
         </nav>
@@ -180,10 +177,7 @@ export function HeaderMegaMenu() {
           <Link href="/shop?categorySlug=bags" onClick={() => setMobileMenuOpen(false)} className="block py-1 pl-4 text-xs text-neutral-600">
             • Bags (Balo & Túi)
           </Link>
-          <Link href="/shop?collectionSlug=collab-all-blacks" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-red-600">
-            Collaborations
-          </Link>
-          <Link href="/track-order" onClick={() => setMobileMenuOpen(false)} className="block py-1 text-neutral-700 font-mono text-xs">
+          <Link href="/track-order" onClick={() => setMobileMenuOpen(false)} className="block py-1">
             Tra cứu đơn hàng
           </Link>
           {mounted && token ? (
